@@ -1,0 +1,18 @@
+{
+    "name": "sandymac/grav-plugin-mcp-server",
+    "homepage": "https://github.com/sandymac/grav-plugin-mcp-server",
+    "type": "grav-plugin",
+    "description": "MCP (Model Context Protocol) endpoint served directly from a Grav site over Streamable HTTP",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Grav\\Plugin\\McpServer\\": "classes/"
+        },
+        "classmap": [
+            "mcp-server.php"
+        ]
+    }
+}

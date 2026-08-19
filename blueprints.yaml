@@ -1,0 +1,135 @@
+name: MCP Server
+slug: mcp-server
+type: plugin
+version: 1.0.0
+description: Serves a Model Context Protocol (MCP) endpoint directly from your Grav site over Streamable HTTP. Point your MCP client (such as Claude) at https://yoursite/mcp.
+icon: plug
+author:
+  name: Sandy McArthur
+  email: sandy@mcarthur.org
+  url: https://sandy.mcarthur.org
+homepage: https://github.com/sandymac/grav-plugin-mcp-server
+bugs: https://github.com/sandymac/grav-plugin-mcp-server/issues
+keywords: mcp, ai, model-context-protocol, api
+license: MIT
+compatibility:
+  grav: ["2.0"]
+
+dependencies:
+  - { name: grav, version: ">=2.0.17" }
+  - { name: api, version: ">=1.0.19" }
+
+form:
+  validation: loose
+  fields:
+    enabled:
+      type: toggle
+      label: PLUGIN_ADMIN.PLUGIN_STATUS
+      highlight: 1
+      default: true
+      options:
+        1: PLUGIN_ADMIN.ENABLED
+        0: PLUGIN_ADMIN.DISABLED
+      validate:
+        type: bool
+
+    tabs:
+      type: tabs
+      classes: side-tabs
+      fields:
+        tab_config:
+          type: tab
+          title: Plugin Config
+          fields:
+            section_endpoint:
+              type: section
+              title: Endpoint
+              underline: true
+            route:
+              type: text
+              label: Endpoint route
+              default: /mcp
+            require_auth:
+              type: toggle
+              label: Require API key (Bearer) authentication
+              help: "Leave enabled. Disabling serves the MCP endpoint to anonymous callers — only the API plugin's own checks then stand between the internet and this site's admin tool surface. Local development only."
+              highlight: 1
+              default: true
+              options:
+                1: PLUGIN_ADMIN.ENABLED
+                0: PLUGIN_ADMIN.DISABLED
+              validate:
+                type: bool
+            section_oauth:
+              type: section
+              title: OAuth
+              underline: true
+            oauth.enabled:
+              type: toggle
+              label: OAuth authorization server
+              help: Required for hosted MCP clients that connect via interactive sign-in (custom connectors). Serves discovery metadata, dynamic client registration, and login/consent at {route}/oauth/*.
+              highlight: 1
+              default: true
+              options:
+                1: PLUGIN_ADMIN.ENABLED
+                0: PLUGIN_ADMIN.DISABLED
+              validate:
+                type: bool
+            oauth.access_token_days:
+              type: number
+              label: Access token lifetime (days)
+              default: 7
+              validate:
+                type: int
+                min: 1
+            oauth.refresh_token_days:
+              type: number
+              label: Refresh token lifetime (days)
+              help: After a connector sits idle this many days, its refresh token expires and the client must sign in on the consent screen again. Any activity rotates the token and restarts the window.
+              default: 90
+              validate:
+                type: int
+                min: 1
+            oauth.require_permission:
+              type: text
+              label: Permission required to approve OAuth access
+              help: Grav permission checked at the consent screen (empty allows any enabled account). The default appears as "API Access" in account permissions.
+              default: api.access
+            oauth.allowed_redirect_hosts:
+              type: selectize
+              label: Allowed OAuth redirect hosts
+              help: Hosts permitted as OAuth redirect targets; localhost is always allowed. Empty allows any https host.
+              default:
+                - claude.ai
+                - claude.com
+                - chatgpt.com
+                - vscode.dev
+                - cursor.com
+                - windsurf.com
+                - chat.mistral.ai
+              validate:
+                type: commalist
+
+        tab_clients:
+          type: tab
+          title: Connecting Clients
+          fields:
+            connect.notice:
+              type: display
+              style: vertical
+              markdown: true
+              data-content@: '\Grav\Plugin\McpServerPlugin::connectNotice'
+
+        tab_access:
+          type: tab
+          title: Tool Access
+          fields:
+            section_permissions:
+              type: section
+              title: Which permissions gate which tools
+              underline: true
+            permissions.table:
+              type: display
+              style: vertical
+              markdown: true
+              data-content@: '\Grav\Plugin\McpServerPlugin::permissionsTable'

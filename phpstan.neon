@@ -1,0 +1,15 @@
+parameters:
+    level: 6
+    phpVersion: 80300
+    ignoreErrors:
+        # array value-type docblocks add nothing to JSON-RPC plumbing code
+        - identifier: missingType.iterableValue
+    paths:
+        - mcp-server.php
+        - classes
+    # Symbol resolution comes from a real Grav install at .gravtest/grav-admin
+    # (CI recreates the same layout — see .github/workflows/ci.yml).
+    bootstrapFiles:
+        - .gravtest/grav-admin/vendor/autoload.php
+        - .gravtest/grav-admin/user/plugins/api/vendor/autoload.php
+        - .gravtest/grav-admin/user/plugins/login/vendor/autoload.php

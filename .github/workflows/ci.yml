@@ -1,0 +1,65 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.3', '8.4']  # 8.3 matches Grav 2 core's ^8.3; 8.4 catches forward-compat breakage
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+
+      - run: git ls-files '*.php' | xargs -P4 -n1 php -l > /dev/null
+
+      - run: php tests/smoke.php
+
+      # param-map.php parses the api plugin as text, so a shallow clone is all it
+      # needs. Pinned to the last triaged release (tests/api-plugin.pin) so ci is
+      # deterministic; the upstream-drift workflow tracks new releases.
+      - run: git clone --depth 1 -b "$(cat tests/api-plugin.pin)" https://github.com/getgrav/grav-plugin-api /tmp/grav-plugin-api
+
+      - run: API_PLUGIN_DIR=/tmp/grav-plugin-api php tests/param-map.php
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - run: composer validate --strict --no-check-lock --no-check-publish
+
+      - run: pipx install yamllint && yamllint blueprints.yaml mcp-server.yaml
+
+  phpstan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: phpstan
+
+      # phpstan.neon resolves Grav / api-plugin / login-plugin symbols from a real
+      # install at .gravtest/grav-admin — recreate the local dev layout. Vendors are
+      # for symbol scanning only, hence --ignore-platform-reqs.
+      - run: |
+          git clone --depth 1 -b 2.0.19 https://github.com/getgrav/grav .gravtest/grav-admin
+          composer install -q -d .gravtest/grav-admin --no-dev --ignore-platform-reqs
+          git clone --depth 1 -b "$(cat tests/api-plugin.pin)" https://github.com/getgrav/grav-plugin-api .gravtest/grav-admin/user/plugins/api
+          composer install -q -d .gravtest/grav-admin/user/plugins/api --no-dev --ignore-platform-reqs
+          git clone --depth 1 https://github.com/getgrav/grav-plugin-login .gravtest/grav-admin/user/plugins/login
+          composer install -q -d .gravtest/grav-admin/user/plugins/login --no-dev --ignore-platform-reqs
+
+      - run: phpstan analyse --memory-limit=1G
+
+      # The same real-install layout satisfies the integration-flavored tests
+      # (both skip cleanly when .gravtest is absent, e.g. in the test job).
+      - run: php tests/permission-gate.php
+
+      - run: php tests/oauth-flow.php

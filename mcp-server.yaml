@@ -1,0 +1,32 @@
+enabled: true
+route: /mcp
+
+# OAuth 2.1 authorization server for MCP clients that can't send a static
+# Bearer header (hosted custom connectors). Access tokens are grav_ API
+# keys minted through grav-plugin-api, so they show up in
+# `bin/plugin api keys:list` like any other key.
+oauth:
+  enabled: true
+  access_token_days: 7
+  # After a connector sits idle this many days it must sign in again;
+  # any activity rotates the refresh token and restarts the window.
+  refresh_token_days: 90
+  # Grav permission a user must hold to approve an OAuth connection
+  # ("API Access" in account permissions). Empty string allows any
+  # enabled account.
+  require_permission: api.access
+  # Hosts allowed as OAuth redirect targets (localhost is always allowed).
+  # Empty list allows any https host.
+  allowed_redirect_hosts:
+    - claude.ai
+    - claude.com
+    - chatgpt.com
+    - vscode.dev
+    - cursor.com
+    - windsurf.com
+    - chat.mistral.ai
+
+# Bearer auth against grav-plugin-api's key store. Leave enabled: disabling
+# serves the MCP endpoint to anonymous callers, leaving only the api plugin's
+# own checks between the internet and the admin tool surface. Local dev only.
+require_auth: true
