@@ -36,6 +36,7 @@ class OAuthServer
     private const int FORM_TTL = 600;      // seconds the consent form stays submittable
     private const int MAX_FAILURES = 5;   // consent-login failures per IP or username...
     private const int LOCKOUT_TTL = 900;  // ...before that key is locked out this many seconds
+    public const int MAX_REGISTRATIONS = 10; // DCR registrations per IP per LOCKOUT_TTL window (public for tests)
 
     /**
      * The Model Context Protocol wave mark, from the official logo
@@ -153,6 +154,15 @@ class OAuthServer
             $this->json(405, ['error' => 'invalid_request']);
         }
 
+        // Registration is public by spec (RFC 7591), so bound it: legitimate
+        // connectors register once per setup, only a flood ever sees the 429.
+        // Counted on success only — rejected floods then cost no store writes,
+        // and the age prune plus MAX_PENDING still bound the file.
+        $throttleKey = 'reg:' . Uri::ip();
+        if ($this->store->failureCount($throttleKey) >= self::MAX_REGISTRATIONS) {
+            $this->json(429, ['error' => 'too_many_requests', 'error_description' => 'Too many client registrations from this address. Try again later.']);
+        }
+
         $meta = json_decode((string) file_get_contents('php://input'), true);
         if (!is_array($meta)) {
             $this->json(400, ['error' => 'invalid_client_metadata']);
@@ -178,6 +188,7 @@ class OAuthServer
             'created' => time(),
         ];
         $this->store->putClient($client);
+        $this->store->recordFailure($throttleKey, self::LOCKOUT_TTL);
 
         $this->json(201, $client + [
             'token_endpoint_auth_method' => 'none',

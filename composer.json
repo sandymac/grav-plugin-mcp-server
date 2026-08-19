@@ -10,9 +10,6 @@
     "autoload": {
         "psr-4": {
             "Grav\\Plugin\\McpServer\\": "classes/"
-        },
-        "classmap": [
-            "mcp-server.php"
-        ]
+        }
     }
 }

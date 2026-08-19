@@ -1,3 +1,11 @@
+# v1.0.2
+## 2026-08-19
+
+1. [](#improved)
+    * The public OAuth dynamic client registration endpoint (RFC 7591) is now bounded: at most 10 registrations per IP per 15-minute window (HTTP 429 beyond), and the OAuth store keeps at most 200 unconsented client registrations, evicting oldest-first — a registration flood can no longer grow `oauth.json` without bound. Clients holding a live code or refresh token are never evicted.
+    * README: GPM (`bin/gpm install mcp-server`) documented as the preferred installation path
+    * Dropped the redundant composer classmap for the plugin entry file (Grav loads it by slug convention)
+
 # v1.0.1
 ## 2026-08-19
 

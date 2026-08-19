@@ -8,6 +8,7 @@ declare(strict_types=1);
  * asserting the security behaviors that matter:
  *
  *   - redirect-host allowlist at registration
+ *   - per-IP throttle on dynamic client registration
  *   - open-redirect guard at authorize
  *   - consent-form HMAC (tamper/expiry) integrity
  *   - brute-force lockout by IP and by username
@@ -348,6 +349,18 @@ $reg = oauth('POST', '/mcp/oauth/register', [], [], '{"redirect_uris":["' . REDI
 $client = json_decode($reg['body'], true);
 check($reg['status'] === 201 && is_string($client['client_id'] ?? null), 'registration succeeds for an allowlisted https host');
 $clientId = (string) $client['client_id'];
+
+// 2b. Registration is bounded per IP: the request past MAX_REGISTRATIONS gets a 429.
+$floodBody = '{"redirect_uris":["' . REDIRECT_URI . '"],"client_name":"Flood"}';
+$last = [];
+for ($i = 0; $i < OAuthServer::MAX_REGISTRATIONS; $i++) {
+    $last = oauth('POST', '/mcp/oauth/register', [], [], $floodBody, '7.7.7.7');
+}
+check(($last['status'] ?? 0) === 201, 'registrations up to the per-IP limit succeed');
+$over = oauth('POST', '/mcp/oauth/register', [], [], $floodBody, '7.7.7.7');
+check($over['status'] === 429 && str_contains($over['body'], 'too_many_requests'), 'a registration past the per-IP limit is refused with 429');
+$otherIp = oauth('POST', '/mcp/oauth/register', [], [], $floodBody, '6.6.6.6');
+check($otherIp['status'] === 201, 'the registration throttle is per IP, not global');
 
 // 3. Authorize: open-redirect guard and PKCE requirement.
 $badRedirect = oauth('GET', '/mcp/oauth/authorize', ['client_id' => $clientId, 'redirect_uri' => 'https://client.example/other'] + $authParams($clientId));

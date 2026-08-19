@@ -16,6 +16,13 @@ use Grav\Common\Grav;
  */
 class OAuthStore
 {
+    /**
+     * Hard ceiling on unconsented client registrations. DCR is public by spec,
+     * so without a bound a registration loop grows this file for a full day
+     * before the age prune bites. Public so tests assert against the real value.
+     */
+    public const int MAX_PENDING = 200;
+
     private array $data;
 
     public function __construct(private readonly string $file)
@@ -57,6 +64,21 @@ class OAuthStore
                 && (isset($live[(string) ($c['client_id'] ?? '')]) || (int) ($c['created'] ?? 0) > $cutoff),
         );
 
+        // Even inside the day window the file must stay bounded: beyond
+        // MAX_PENDING unconsented clients, evict oldest-registered. A genuine
+        // client's register→consent gap is minutes, so it only loses its slot
+        // if a flood outruns the per-IP registration throttle from many IPs.
+        $pending = array_filter(
+            $this->data['clients'],
+            static fn($c): bool => !isset($live[(string) ($c['client_id'] ?? '')]),
+        );
+        if (count($pending) >= self::MAX_PENDING) {
+            uasort($pending, static fn($a, $b): int => ((int) ($a['created'] ?? 0)) <=> ((int) ($b['created'] ?? 0)));
+            foreach (array_slice(array_keys($pending), 0, count($pending) - self::MAX_PENDING + 1) as $evict) {
+                unset($this->data['clients'][$evict]);
+            }
+        }
+
         $this->data['clients'][$client['client_id']] = $client;
         $this->save();
     }
@@ -95,7 +117,7 @@ class OAuthStore
         return is_array($token) ? $token : null;
     }
 
-    /** Consent-login failures for a throttle key ('ip:...' or 'user:...'), 0 once expired. */
+    /** Sliding-window counter for a throttle key ('ip:...', 'user:...', 'reg:...'), 0 once expired. */
     public function failureCount(string $key): int
     {
         $entry = $this->data['failures'][$key] ?? null;

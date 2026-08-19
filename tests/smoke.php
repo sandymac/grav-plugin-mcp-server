@@ -209,6 +209,24 @@ check($store->getClient('stale') === null, 'putClient prunes old clients nothing
 check($store->getClient('referenced') !== null, 'putClient keeps clients with a live refresh token');
 check($store->getClient('fresh') !== null, 'putClient keeps the client being registered');
 
+// The pending cap: a registration flood inside the day window cannot grow the
+// store past MAX_PENDING — oldest unconsented clients are evicted, clients
+// referenced by a live token never are.
+$capFile = sys_get_temp_dir() . '/mcp-oauth-smoke-cap-' . getmypid() . '.json';
+@unlink($capFile);
+$capStore = new OAuthStore($capFile);
+$capStore->putClient(['client_id' => 'live-client', 'created' => time() - 3600]);
+$capStore->putRefresh('r-live', ['client_id' => 'live-client', 'username' => 'bob', 'key_id' => 'kL', 'expires' => time() + 60]);
+for ($i = 0; $i <= OAuthStore::MAX_PENDING; $i++) { // one more than the cap
+    $capStore->putClient(['client_id' => "flood-{$i}", 'created' => time() - 600 + $i]);
+}
+check($capStore->getClient('flood-0') === null, 'the cap evicts the oldest unconsented client');
+check($capStore->getClient('flood-' . OAuthStore::MAX_PENDING) !== null, 'the cap keeps the newest registration');
+check($capStore->getClient('live-client') !== null, 'the cap never evicts a client with a live token');
+$capData = (array) json_decode((string) file_get_contents($capFile), true);
+check(count($capData['clients']) === OAuthStore::MAX_PENDING + 1, 'the store holds exactly MAX_PENDING pending clients plus the live one');
+@unlink($capFile);
+
 // A corrupted store self-heals instead of TypeError-ing into a 500.
 file_put_contents($storeFile, json_encode(['refresh_tokens' => ['x' => 'not-an-array'], 'failures' => ['y' => 'junk']]));
 $corrupt = new OAuthStore($storeFile);
