@@ -1,3 +1,9 @@
+# v1.0.1
+## 2026-08-19
+
+1. [](#bugfix)
+    * The admin blueprint's generated permission → tool table no longer fatals Grav's GPM package enumeration when evaluated outside the plugin's own boot — e.g. `bin/gpm` on the CLI, or the plugin installed but disabled. The blueprint callable now registers the class autoloader itself and fails soft.
+
 # v1.0.0
 ## 2026-08-19
 

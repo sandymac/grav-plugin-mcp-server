@@ -24,6 +24,17 @@ if (!is_file($grav . '/vendor/autoload.php') || !is_file($grav . '/user/plugins/
 
 require $grav . '/vendor/autoload.php';
 require_once $grav . '/user/plugins/api/classes/Api/PermissionResolver.php';
+
+// Blueprint statics must be self-sufficient: Grav evaluates data-content@ in
+// contexts where the plugin's autoload event never fires (bin/gpm on the CLI,
+// the plugin installed but disabled). Calling before any manual class require
+// reproduces that exactly — regression test for the GPM-enumeration fatal.
+require_once __DIR__ . '/../mcp-server.php';
+if (!str_contains(\Grav\Plugin\McpServerPlugin::permissionsTable(), 'api.pages.read')) {
+    echo "  FAIL blueprint permissionsTable is not self-sufficient without the plugin autoloader\n";
+    exit(1);
+}
+
 require_once __DIR__ . '/../classes/OAuth/OAuthStore.php';
 require_once __DIR__ . '/../classes/OAuth/OAuthServer.php';
 require_once __DIR__ . '/../classes/ApiBridge.php';

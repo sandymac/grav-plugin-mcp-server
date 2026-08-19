@@ -2,7 +2,7 @@
 
 # Grav MCP Server Plugin
 
-Serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint directly from your Grav site over Streamable HTTP. Point your MCP client (such as Claude) at `https://yoursite.com/mcp`.
+Serves a [Model Context Protocol](https://modelcontextprotocol.io) endpoint directly from your Grav site over Streamable HTTP. Point your MCP client or LLM/AI agent at `https://yoursite.com/mcp`.
 
 Works with **hosted connectors** (built-in OAuth 2.1 authorization server with dynamic client registration) and **CLI or desktop clients** (OAuth or a static API key header).
 

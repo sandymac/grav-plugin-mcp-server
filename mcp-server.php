@@ -16,10 +16,16 @@ class McpServerPlugin extends Plugin
     /** Markdown permission → tools table for the admin Permissions tab (blueprints.yaml data-content@). */
     public static function permissionsTable(): string
     {
+        self::registerAutoload();
+
         $rows = '';
-        foreach ((new \Grav\Plugin\McpServer\ToolRegistry(null))->permissionMap() as $permission => $tools) {
-            $label = $permission === '' ? '*(none — always available)*' : '`' . $permission . '`';
-            $rows .= '| ' . $label . ' | `' . implode('`, `', $tools) . '` |' . "\n";
+        try {
+            foreach ((new \Grav\Plugin\McpServer\ToolRegistry(null))->permissionMap() as $permission => $tools) {
+                $label = $permission === '' ? '*(none — always available)*' : '`' . $permission . '`';
+                $rows .= '| ' . $label . ' | `' . implode('`, `', $tools) . '` |' . "\n";
+            }
+        } catch (\Throwable) {
+            return 'The permission → tool table could not be generated here.';
         }
 
         return <<<MD
@@ -106,6 +112,24 @@ class McpServerPlugin extends Plugin
 
     public function autoload(): void
     {
+        self::registerAutoload();
+    }
+
+    /**
+     * Idempotent, and deliberately reachable from the blueprint statics: Grav
+     * evaluates data-content@ callables in contexts where the plugin's
+     * autoload event never fires — `bin/gpm` on the CLI, or the plugin
+     * installed but disabled — and GPM's package enumeration must not fatal
+     * on an unloadable class.
+     */
+    private static function registerAutoload(): void
+    {
+        static $registered = false;
+        if ($registered) {
+            return;
+        }
+        $registered = true;
+
         if (is_file(__DIR__ . '/vendor/autoload.php')) {
             require __DIR__ . '/vendor/autoload.php';
             return;
