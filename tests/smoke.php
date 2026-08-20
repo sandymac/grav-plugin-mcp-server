@@ -182,6 +182,12 @@ check(OAuthServer::filterScopes('') === [], 'filterScopes of an empty request is
 check(OAuthServer::filterScopes('openid profile email') === [], 'filterScopes of a wholly unrecognized request is empty');
 check(OAuthServer::filterScopes('api') === [], 'filterScopes drops a bare "api" (only api.* leaves are scopes)');
 
+// A request that limits nothing must be identified as full account access.
+check(OAuthServer::coversAllSupported(['*']), 'the wildcard scope covers everything');
+check(OAuthServer::coversAllSupported(OAuthServer::supportedScopes()), 'requesting the whole advertised vocabulary covers everything (claude.ai default)');
+check(!OAuthServer::coversAllSupported(['api.pages.read']), 'a real subset does not cover everything');
+check(!OAuthServer::coversAllSupported(['api']), 'the bare api prefix leaves admin.super uncovered');
+
 // --- Scoped-key tool visibility (issue #16) ---
 
 $scoped = new ToolRegistry();

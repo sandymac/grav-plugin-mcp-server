@@ -138,6 +138,31 @@ class OAuthServer
     }
 
     /**
+     * Whether a granted scope set limits nothing: the wildcard, or coverage of
+     * every advertised scope. Clients like claude.ai request the whole
+     * scopes_supported list by default, and the consent screen must call that
+     * "full account access" rather than imply a careful selection.
+     */
+    public static function coversAllSupported(array $scopes): bool
+    {
+        if (in_array('*', $scopes, true)) {
+            return true;
+        }
+
+        $supported = self::supportedScopes();
+        if ($supported === []) {
+            return false; // no vocabulary to compare against (bare-protocol tests)
+        }
+        foreach ($supported as $permission) {
+            if (!\Grav\Plugin\McpServer\ToolRegistry::scopeAllows($scopes, $permission)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * The scope entries this server recognizes: api.* permissions (what the
      * tools enforce), admin.super, or the wildcard. Anything else — openid,
      * email, and other habits clients bring — is dropped; the client learns
@@ -629,14 +654,22 @@ class OAuthServer
         $host = $e((string) (parse_url($params['redirect_uri'], PHP_URL_HOST) ?? ''));
         $errorHtml = $error !== null ? '<p class="error">' . $e($error) . '</p>' : '';
 
-        // Show what approval hands over: the granted (recognized) scopes —
-        // the same list the minted key will carry — or the unscoped truth.
+        // Show what approval hands over: the granted (recognized) scopes — the
+        // same list the minted key will carry. A request that limits nothing
+        // (none, wildcard, or the whole advertised vocabulary — claude.ai
+        // requests everything scopes_supported lists) is named for what it is
+        // instead of dressed up as a 20-item "limitation".
         $scopes = self::filterScopes($params['scope']);
-        $grants = $scopes === []
-            ? '<p>Approving grants <strong>full account access</strong> — everything the account you sign in with can do via the API.</p>'
-            : '<p>Approving grants access limited to:</p><ul>'
+        if ($scopes === [] || self::coversAllSupported($scopes)) {
+            $grants = '<p>Approving grants <strong>full account access</strong> — '
+                . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
+                . '</p>';
+        } else {
+            $grants = '<p>Approving grants access limited to:</p><ul>'
                 . implode('', array_map(static fn(string $s): string => '<li><code>' . $e($s) . '</code></li>', $scopes))
                 . '</ul>';
+        }
+        $grants .= '<p class="cap">Whatever you approve is capped by the account you sign in with: the connector can never do more than that account\'s own permissions allow.</p>';
 
         $hidden = '';
         foreach ($this->formParams($params) as $k => $v) {
@@ -706,6 +739,7 @@ class OAuthServer
               body{font-family:system-ui,sans-serif;max-width:24rem;margin:10vh auto;padding:0 1rem;color:#222}
               body>svg{display:block;width:3rem;height:3rem}
               h1{font-size:1.5rem;margin:.75rem 0 1rem}
+              .cap{color:#555;font-size:.9rem}
               label{display:block;margin:.75rem 0}
               input[type=text],input[type=password]{width:100%;padding:.5rem;box-sizing:border-box}
               .buttons{margin-top:1rem;display:flex;gap:.5rem}

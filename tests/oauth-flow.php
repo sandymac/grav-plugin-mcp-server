@@ -483,6 +483,10 @@ check((redirectParams($junkScope)['error'] ?? '') === 'invalid_scope', 'a wholly
 
 $unscopedConsent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
 check(str_contains($unscopedConsent['body'], 'full account access'), 'the consent screen names an unscoped grant full account access');
+check(str_contains($unscopedConsent['body'], 'capped by the account you sign in with'), 'the consent screen explains the account-permission cap');
+
+$starConsent = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['scope' => '*']));
+check(str_contains($starConsent['body'], 'full account access') && !str_contains($starConsent['body'], '<li>'), 'a wildcard request is named full account access, not listed as a limitation');
 
 $scopedParams = array_merge($authParams($clientId), ['scope' => 'api.pages.read openid']);
 $scopedConsent = oauth('GET', '/mcp/oauth/authorize', $scopedParams);
