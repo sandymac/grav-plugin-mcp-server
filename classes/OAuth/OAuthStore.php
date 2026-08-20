@@ -225,7 +225,11 @@ class OAuthStore
     {
         $this->ensureDir();
         $lock = fopen($this->file . '.lock', 'c');
-        if ($lock === false || !flock($lock, LOCK_EX)) {
+        if ($lock === false) {
+            throw new \RuntimeException(sprintf('Unable to open "%s.lock"', $this->file));
+        }
+        if (!flock($lock, LOCK_EX)) {
+            fclose($lock);
             throw new \RuntimeException(sprintf('Unable to lock "%s.lock"', $this->file));
         }
 
