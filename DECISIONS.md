@@ -51,8 +51,9 @@ can't sign in on our consent form; if that ever matters, session-based consent i
 
 ## Deliberately absent
 
-- **Audit logging** — already covered: every tool call dispatches through `ApiRouter`, so
-  the api plugin audits it exactly as it audits a REST call.
+- **Audit logging** — covered by the api plugin: every tool call dispatches through
+  `ApiRouter`, and `ApiBridge` forwards the real `$_SERVER` params and the caller's
+  `User-Agent`, so `AuditContext` records the same IP and agent a direct REST call gets.
 - **Origin-header validation (DNS-rebinding guard)** — that guard protects localhost
   servers with *ambient* auth. This endpoint accepts only `Authorization: Bearer` (no
   cookies, no session), so a hostile page can't forge an authenticated request no matter

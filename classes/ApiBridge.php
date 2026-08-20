@@ -94,7 +94,15 @@ class ApiBridge
             $headers['Content-Type'] = 'application/json';
         }
 
-        $request = (new ServerRequest($method, $uri, $headers))
+        // The api plugin reads the caller's identity off the request we build:
+        // AuditContext takes REMOTE_ADDR from the server params and the
+        // User-Agent header, and per-IP rate limiting keys on REMOTE_ADDR too —
+        // so forward the real $_SERVER and the caller's own User-Agent.
+        if (!isset($headers['User-Agent']) && isset($_SERVER['HTTP_USER_AGENT'])) {
+            $headers['User-Agent'] = (string) $_SERVER['HTTP_USER_AGENT'];
+        }
+
+        $request = (new ServerRequest($method, $uri, $headers, null, '1.1', $_SERVER))
             // Nyholm does not derive query params from the URI; controllers read
             // getQueryParams(), so set them explicitly.
             ->withQueryParams($params);
