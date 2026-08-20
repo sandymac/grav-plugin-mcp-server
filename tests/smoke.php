@@ -218,6 +218,27 @@ $store->putCode('c1', ['client_id' => 'c', 'username' => 'bob', 'expires' => tim
 check(is_array($store->takeCode('c1')), 'takeCode returns the stored code');
 check($store->takeCode('c1') === null, 'authorization codes are single-use');
 
+// Concurrency: two instances = two simultaneous requests, each constructed
+// while the code exists. take* re-reads under an exclusive lock, so the
+// second redemption must lose even though its constructor snapshot is stale.
+$store->putCode('race', ['client_id' => 'c', 'expires' => time() + 60]);
+$firstInstance = new OAuthStore($storeFile);
+$secondInstance = new OAuthStore($storeFile);
+check(is_array($firstInstance->takeCode('race')), 'the first concurrent redemption wins');
+check($secondInstance->takeCode('race') === null, 'the second concurrent redemption loses (reload under lock)');
+
+// Refresh replay: the first take marks the token used; a later take returns
+// the tombstone so the server can treat replay as theft and sweep the family.
+$store->putRefresh('gen1', ['client_id' => 'c', 'username' => 'bob', 'key_id' => 'kOld', 'family' => 'famX', 'expires' => time() + 60]);
+$liveTake = $store->takeRefresh('gen1');
+check(is_array($liveTake) && empty($liveTake['used']), 'a live refresh token comes back without the used flag');
+$replayTake = $store->takeRefresh('gen1');
+check(is_array($replayTake) && !empty($replayTake['used']), 'a replayed refresh token comes back flagged used');
+$store->putRefresh('gen2', ['client_id' => 'c', 'username' => 'bob', 'key_id' => 'kNew', 'family' => 'famX', 'expires' => time() + 60]);
+check((new OAuthStore($storeFile))->revokeFamily('famX') === ['kNew'], 'revokeFamily sweeps the family and returns the live keys to revoke');
+check($store->takeRefresh('gen2') === null, 'the swept descendant refresh token is gone');
+check($store->revokeFamily('') === [], 'an empty family never sweeps (pre-family tokens all share the missing value)');
+
 // Registration-time pruning: stale clients drop, referenced and recent stay.
 $store->putClient(['client_id' => 'stale', 'created' => time() - 200 * 86400]);
 $store->putClient(['client_id' => 'referenced', 'created' => time() - 200 * 86400]);
