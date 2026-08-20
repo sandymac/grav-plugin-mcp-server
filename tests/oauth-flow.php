@@ -337,6 +337,7 @@ $meta = oauth('GET', '/.well-known/oauth-authorization-server');
 $metaBody = json_decode($meta['body'], true);
 check($meta['status'] === 200 && $metaBody['issuer'] === 'https://site.test', 'AS metadata served with correct issuer');
 check($metaBody['code_challenge_methods_supported'] === ['S256'], 'metadata advertises S256 only');
+check(in_array('Cache-Control: no-store', $meta['headers'], true), 'JSON responses carry Cache-Control: no-store (RFC 6749 §5.1)');
 
 // 2. Registration enforces the redirect-host allowlist.
 $evil = oauth('POST', '/mcp/oauth/register', [], [], '{"redirect_uris":["https://evil.example/cb"],"client_name":"Evil"}');
@@ -375,6 +376,7 @@ check(($noPkceRedirect['iss'] ?? '') === 'https://site.test', 'error redirects c
 $consent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
 $sig = consentSignature($consent['body']);
 check($sig['sig'] !== '', 'consent form carries an HMAC signature');
+check(in_array('X-Frame-Options: DENY', $consent['headers'], true), 'the consent page refuses to be framed (RFC 6749 §10.13)');
 $tampered = oauth('POST', '/mcp/oauth/authorize', [], array_merge($authParams($clientId), $sig, [
     'redirect_uri' => 'https://client.example/other', 'username' => 'alice', 'password' => 'pw-alice',
 ]));

@@ -547,6 +547,9 @@ class OAuthServer
     {
         http_response_code($status);
         header('Content-Type: application/json');
+        // RFC 6749 §5.1: token responses carry credentials — never cacheable.
+        // Blanket no-store: everything else served here is trivially regenerated.
+        header('Cache-Control: no-store');
         echo json_encode($body, JSON_UNESCAPED_SLASHES);
         exit;
     }
@@ -555,6 +558,8 @@ class OAuthServer
     {
         http_response_code($status);
         header('Content-Type: text/html; charset=utf-8');
+        // RFC 6749 §10.13: the consent page must never render inside a frame.
+        header('X-Frame-Options: DENY');
         $logo = self::LOGO;
         $favicon = 'data:image/svg+xml,' . rawurlencode(str_replace("\n", '', self::LOGO));
         echo <<<HTML
