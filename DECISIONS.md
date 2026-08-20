@@ -54,6 +54,16 @@ can't sign in on our consent form; if that ever matters, session-based consent i
 - **Audit logging** — covered by the api plugin: every tool call dispatches through
   `ApiRouter`, and `ApiBridge` forwards the real `$_SERVER` params and the caller's
   `User-Agent`, so `AuditContext` records the same IP and agent a direct REST call gets.
+- **Consent-time scope adjustment** — the consent screen displays the granted scopes
+  (or "full account access") but the human approves or denies as a whole; scopes are a
+  ceiling over live account permissions, so consent-time narrowing is UX, not a security
+  boundary, and the bot-account pattern already covers human-managed narrowing.
+  Checkbox-style downscoping is explored in issue #1.
+- **Consent-time permission validation of requested scopes** — deliberately none: a
+  scope the account doesn't hold grants nothing (effective access = account permissions
+  ∩ key scopes, resolved live per request), and the account's permissions can change
+  after the grant anyway — a consent-time check would be a snapshot pretending to be an
+  invariant.
 - **Origin-header validation (DNS-rebinding guard)** — that guard protects localhost
   servers with *ambient* auth. This endpoint accepts only `Authorization: Bearer` (no
   cookies, no session), so a hostile page can't forge an authenticated request no matter

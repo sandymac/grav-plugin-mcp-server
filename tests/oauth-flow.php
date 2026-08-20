@@ -459,6 +459,34 @@ $keysAfter = (string) file_get_contents($keysFile);
 $countKeys = static fn(string $yaml): int => substr_count($yaml, 'username: alice');
 check($countKeys($keysAfter) === $countKeys($keysBefore), 'rotation revoked the superseded access key (no key pile-up)');
 
+// 10b. Scope honoring: junk-only requests are refused, recognized scopes ride
+// the consent screen, the minted key, and the token responses.
+$junkScope = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['scope' => 'openid profile']));
+check((redirectParams($junkScope)['error'] ?? '') === 'invalid_scope', 'a wholly unrecognized scope is refused, never silently escalated to unscoped');
+
+$unscopedConsent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
+check(str_contains($unscopedConsent['body'], 'full account access'), 'the consent screen names an unscoped grant full account access');
+
+$scopedParams = array_merge($authParams($clientId), ['scope' => 'api.pages.read openid']);
+$scopedConsent = oauth('GET', '/mcp/oauth/authorize', $scopedParams);
+// The raw request still rides the hidden form fields (HMAC round-trip), so
+// assert on the rendered grant list, not the whole body.
+check(str_contains($scopedConsent['body'], '<li><code>api.pages.read</code></li>') && !str_contains($scopedConsent['body'], '<code>openid'), 'the consent screen lists the granted scopes, not the raw request');
+
+$scopedPost = array_merge($scopedParams, consentSignature($scopedConsent['body']), ['username' => 'alice', 'password' => 'pw-alice']);
+$scopedGrant = redirectParams(oauth('POST', '/mcp/oauth/authorize', [], $scopedPost));
+$scopedToken = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost((string) ($scopedGrant['code'] ?? ''), VERIFIER))['body'], true);
+check(($scopedToken['scope'] ?? '') === 'api.pages.read', 'the token response echoes the granted scope (unrecognized entries filtered out)');
+check(preg_match('/scopes:\s+-\s+api\.pages\.read/', (string) file_get_contents($keysFile)) === 1, 'the minted key carries the granted scope as its cap');
+
+$scopedRotated = json_decode(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $scopedToken['refresh_token']))['body'], true);
+check(($scopedRotated['scope'] ?? '') === 'api.pages.read', 'refresh keeps the granted scope');
+oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $scopedRotated['refresh_token']]);
+
+// scopes_supported in the served metadata needs the plugin autoloader, which
+// this harness doesn't register — the derivation is asserted in smoke.php.
+check(!array_key_exists('scope', (array) $issued), 'an unscoped grant has no scope member in the token response');
+
 // 11. Revocation: killing the refresh token kills the access key too; no oracle.
 $revoked = oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $rotated['refresh_token']]);
 check($revoked['status'] === 200, 'revocation returns 200');

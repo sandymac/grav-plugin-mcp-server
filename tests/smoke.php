@@ -164,6 +164,24 @@ $pr = OAuthServer::protectedResourceMetadata('https://example.com', '/mcp');
 check($pr['resource'] === 'https://example.com/mcp', 'resource metadata resource URL');
 check($pr['authorization_servers'] === ['https://example.com'], 'resource metadata points at this site as AS');
 
+// --- OAuth scopes: vocabulary and request filtering ---
+
+check(!array_key_exists('scopes_supported', $as), 'metadata omits scopes_supported when no vocabulary is passed');
+$supported = OAuthServer::supportedScopes();
+check(in_array('api.pages.read', $supported, true) && in_array('api.gpm.write', $supported, true), 'supportedScopes derives the tool permissions from ToolRegistry');
+check(!in_array('', $supported, true), 'supportedScopes drops the no-permission bucket');
+$asScoped = OAuthServer::authorizationServerMetadata('https://example.com', '/mcp', $supported);
+check(($asScoped['scopes_supported'] ?? []) === $supported, 'AS metadata advertises the supported scopes');
+check((OAuthServer::protectedResourceMetadata('https://example.com', '/mcp', $supported)['scopes_supported'] ?? []) === $supported, 'resource metadata advertises the supported scopes');
+
+check(
+    OAuthServer::filterScopes(" api.pages.read openid email api.pages.read admin.super * \n") === ['api.pages.read', 'admin.super', '*'],
+    'filterScopes keeps api.* / admin.super / * entries, deduplicated, and drops the rest'
+);
+check(OAuthServer::filterScopes('') === [], 'filterScopes of an empty request is empty (unscoped)');
+check(OAuthServer::filterScopes('openid profile email') === [], 'filterScopes of a wholly unrecognized request is empty');
+check(OAuthServer::filterScopes('api') === [], 'filterScopes drops a bare "api" (only api.* leaves are scopes)');
+
 // --- Scoped-key tool visibility (issue #16) ---
 
 $scoped = new ToolRegistry();
