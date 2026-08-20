@@ -2,7 +2,7 @@
 ## 2026-08-20
 
 1. [](#improved)
-    * OAuth clients' requested `scope` is now honored: recognized entries (`api.*`, `admin.super`, `*`) cap the minted API key, are echoed in the token response, and are shown on the consent screen — named "full account access" when the request limits nothing (no scope, the wildcard, or the whole advertised vocabulary, which is what claude.ai requests by default), always with a note that access is capped by the signed-in account's own permissions. A request whose entries are all unrecognized is refused with `invalid_scope` instead of silently receiving an unscoped key. Discovery metadata now advertises `scopes_supported`, derived from the tool surface.
+    * OAuth clients' requested `scope` is now honored: recognized entries (`api.*`, `admin.super`, `*`) cap the minted API key, are echoed in the token response, and are shown on the consent screen — named "full account access" when the request limits nothing (no scope, the wildcard, or the whole advertised vocabulary, which is what claude.ai requests by default), with what that covers behind a collapsed disclosure and always a note that access is capped by the signed-in account's own permissions. A request whose entries are all unrecognized is refused with `invalid_scope` instead of silently receiving an unscoped key. Discovery metadata now advertises `scopes_supported`, derived from the tool surface.
     * MCP tool calls audit with the real caller: the api plugin's audit trail now records the caller's IP and User-Agent, and its per-IP rate limiting keys on the real address.
     * OAuth security events land in `grav.log`: consent approvals (user, grant, client, host, IP), lockouts after repeated failed consent logins, and refresh-token replays.
 1. [](#bugfix)

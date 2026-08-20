@@ -660,13 +660,23 @@ class OAuthServer
         // requests everything scopes_supported lists) is named for what it is
         // instead of dressed up as a 20-item "limitation".
         $scopes = self::filterScopes($params['scope']);
+        $li = static fn(string $s): string => '<li><code>' . $e($s) . '</code></li>';
         if ($scopes === [] || self::coversAllSupported($scopes)) {
             $grants = '<p>Approving grants <strong>full account access</strong> — '
                 . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
                 . '</p>';
+            // The expansion is the advertised vocabulary, collapsed by default:
+            // the point of this branch is that the list is not a limitation,
+            // so it's there for the curious, not in everyone's way.
+            $supported = self::supportedScopes();
+            if ($supported !== []) {
+                $grants .= '<details><summary>What full access covers</summary><ul>'
+                    . implode('', array_map($li, $supported))
+                    . '</ul></details>';
+            }
         } else {
             $grants = '<p>Approving grants access limited to:</p><ul>'
-                . implode('', array_map(static fn(string $s): string => '<li><code>' . $e($s) . '</code></li>', $scopes))
+                . implode('', array_map($li, $scopes))
                 . '</ul>';
         }
         $grants .= '<p class="cap">Whatever you approve is capped by the account you sign in with: the connector can never do more than that account\'s own permissions allow.</p>';
@@ -740,6 +750,8 @@ class OAuthServer
               body>svg{display:block;width:3rem;height:3rem}
               h1{font-size:1.5rem;margin:.75rem 0 1rem}
               .cap{color:#555;font-size:.9rem}
+              details{margin:.75rem 0}
+              summary{cursor:pointer;color:#555;font-size:.9rem}
               label{display:block;margin:.75rem 0}
               input[type=text],input[type=password]{width:100%;padding:.5rem;box-sizing:border-box}
               .buttons{margin-top:1rem;display:flex;gap:.5rem}

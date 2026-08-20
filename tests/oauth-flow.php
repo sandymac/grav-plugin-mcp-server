@@ -485,6 +485,9 @@ $unscopedConsent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
 check(str_contains($unscopedConsent['body'], 'full account access'), 'the consent screen names an unscoped grant full account access');
 check(str_contains($unscopedConsent['body'], 'capped by the account you sign in with'), 'the consent screen explains the account-permission cap');
 
+// In production the full-access branch also carries a collapsed <details>
+// list of the advertised vocabulary; this harness has no ToolRegistry, so
+// no vocabulary and no list — the open "limited to" list must stay absent.
 $starConsent = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['scope' => '*']));
 check(str_contains($starConsent['body'], 'full account access') && !str_contains($starConsent['body'], '<li>'), 'a wildcard request is named full account access, not listed as a limitation');
 
