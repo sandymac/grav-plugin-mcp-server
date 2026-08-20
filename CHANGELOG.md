@@ -1,3 +1,16 @@
+# v1.0.3
+## 2026-08-20
+
+1. [](#improved)
+    * OAuth clients' requested `scope` is now honored: recognized entries (`api.*`, `admin.super`, `*`) cap the minted API key, are echoed in the token response, and are shown on the consent screen — "full account access" when no scope is requested. A request whose entries are all unrecognized is refused with `invalid_scope` instead of silently receiving an unscoped key. Discovery metadata now advertises `scopes_supported`, derived from the tool surface.
+    * MCP tool calls audit with the real caller: the api plugin's audit trail now records the caller's IP and User-Agent, and its per-IP rate limiting keys on the real address.
+    * OAuth security events land in `grav.log`: consent approvals (user, grant, client, host, IP), lockouts after repeated failed consent logins, and refresh-token replays.
+1. [](#bugfix)
+    * Replaying a rotated-away refresh token now revokes the whole token family — the descendant refresh token and its access key — instead of leaving the successor alive (OAuth 2.1 treats rotation reuse as theft).
+    * The OAuth store serializes mutations under an exclusive lock, so two simultaneous token requests can no longer both redeem the same single-use code or refresh token.
+    * The consent page sends `X-Frame-Options: DENY` (RFC 6749 §10.13) and OAuth JSON responses send `Cache-Control: no-store` (§5.1).
+    * Stateless `/mcp` responses no longer plant the shared front-end session cookie (port of the api plugin's `ApiRouter::protectSharedSession()`).
+
 # v1.0.2
 ## 2026-08-19
 

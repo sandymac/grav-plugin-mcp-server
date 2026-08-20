@@ -69,6 +69,8 @@ In the client's connector settings, add a custom connector with URL `https://gra
 
 Behind the scenes: the client discovers `/.well-known/oauth-protected-resource/mcp` → registers at `/mcp/oauth/register` → authorization-code + PKCE flow at `/mcp/oauth/authorize` → tokens from `/mcp/oauth/token`. The access token is a real `grav_` API key (visible in `bin/plugin api keys:list`); revoke it at `/mcp/oauth/revoke` (revoking either the refresh token or access key revokes both).
 
+A client may request a `scope` of `api.*` permissions (advertised as `scopes_supported` in the discovery metadata); the granted scopes cap the minted key and are shown on the consent screen. With no scope requested — the norm for today's connectors — the key is unscoped and the consent screen says so: effective access is always the account's live permissions intersected with the key's scopes, so a dedicated bot account remains the best way to manage what a connector can do over time.
+
 ### CLI or desktop client (OAuth or API key)
 
 Every client needs the same two pieces: the endpoint URL, and — to skip the browser flow — an `Authorization: Bearer grav_...` header. For example, with Claude Code:
