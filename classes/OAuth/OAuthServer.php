@@ -343,9 +343,7 @@ class OAuthServer
             && $user->authenticate((string) ($_POST['password'] ?? ''));
 
         if (!$ok) {
-            foreach ($throttleKeys as $key) {
-                $this->store->recordFailure($key, self::LOCKOUT_TTL);
-            }
+            $this->recordLoginFailure($throttleKeys);
             // The fixed delay stays as a per-request cost on top of the counter.
             usleep(500000);
             $this->renderConsent($client, $params, 'Invalid credentials.');
@@ -362,9 +360,7 @@ class OAuthServer
             }
             $code = preg_replace('/\s+/', '', (string) ($_POST['twofa'] ?? ''));
             if ($code === '' || !(new \Grav\Plugin\Login\TwoFactorAuth\TwoFactorAuth())->verifyCode($totpSecret, $code)) {
-                foreach ($throttleKeys as $key) {
-                    $this->store->recordFailure($key, self::LOCKOUT_TTL);
-                }
+                $this->recordLoginFailure($throttleKeys);
                 usleep(500000);
                 $this->renderConsent($client, $params, 'Invalid two-factor code.');
             }
@@ -400,6 +396,15 @@ class OAuthServer
             'scope' => implode(' ', $granted),
             'expires' => time() + self::CODE_TTL,
         ]);
+
+        $this->log('info', sprintf(
+            'consent approved: user "%s" granted %s to client "%s" (%s) from %s',
+            $username,
+            $granted === [] ? 'full account access' : 'scopes "' . implode(' ', $granted) . '"',
+            (string) ($client['client_name'] ?? 'MCP client'),
+            (string) (parse_url($params['redirect_uri'], PHP_URL_HOST) ?? ''),
+            Uri::ip(),
+        ));
 
         $this->redirectBack($params, ['code' => $code]);
     }
@@ -439,9 +444,34 @@ class OAuthServer
     {
         $token = $this->store->takeRefresh(hash('sha256', (string) ($_POST['refresh_token'] ?? '')));
 
-        if ($token === null
-            || (int) $token['expires'] < time()
-            || $token['client_id'] !== (string) ($_POST['client_id'] ?? '')) {
+        if ($token === null || (int) $token['expires'] < time()) {
+            $this->json(400, ['error' => 'invalid_grant']);
+        }
+
+        if (!empty($token['used'])) {
+            // A replayed refresh token means two parties hold this grant and
+            // one of them is a thief (OAuth 2.1 treats rotation reuse exactly
+            // so). Revoke the whole family — every live descendant refresh
+            // token and its access key — instead of leaving the successor
+            // alive in unknown hands.
+            $keyIds = $this->store->revokeFamily((string) ($token['family'] ?? ''));
+            $user = $this->grav['accounts']->load((string) $token['username']);
+            if ($user->exists()) {
+                $manager = new ApiKeyManager();
+                foreach ($keyIds as $keyId) {
+                    $manager->revokeKey($user, $keyId);
+                }
+            }
+            $this->log('warning', sprintf(
+                'refresh token replay for user "%s" (client %s): revoked %d descendant token(s) as stolen',
+                (string) $token['username'],
+                (string) $token['client_id'],
+                count($keyIds),
+            ));
+            $this->json(400, ['error' => 'invalid_grant']);
+        }
+
+        if ($token['client_id'] !== (string) ($_POST['client_id'] ?? '')) {
             $this->json(400, ['error' => 'invalid_grant']);
         }
 
@@ -451,10 +481,10 @@ class OAuthServer
             (new ApiKeyManager())->revokeKey($user, (string) $token['key_id']);
         }
 
-        $this->issueTokens((string) $token['client_id'], (string) $token['username'], (string) ($token['scope'] ?? ''));
+        $this->issueTokens((string) $token['client_id'], (string) $token['username'], (string) ($token['scope'] ?? ''), (string) ($token['family'] ?? ''));
     }
 
-    private function issueTokens(string $clientId, string $username, string $scope): never
+    private function issueTokens(string $clientId, string $username, string $scope, string $family = ''): never
     {
         $user = $this->grav['accounts']->load($username);
         if (!$user->exists() || (string) $user->get('state', 'enabled') !== 'enabled') {
@@ -483,6 +513,9 @@ class OAuthServer
             'username' => $username,
             'key_id' => $key['id'],
             'scope' => implode(' ', $scopes),
+            // The rotation lineage: replay of any used ancestor revokes the
+            // whole family. Empty on pre-family tokens — they start one here.
+            'family' => $family !== '' ? $family : bin2hex(random_bytes(8)),
             'expires' => time() + $refreshDays * 86400,
         ]);
 
@@ -542,6 +575,32 @@ class OAuthServer
     }
 
     // --- Helpers ---
+
+    /**
+     * Security events into grav.log: a consent turning a password into a
+     * 90-day key, a lockout, a replayed refresh token — the trail an admin
+     * reads after a stolen password. Soft: bare-container tests have no log
+     * service, and losing a log line must never fail the flow itself.
+     */
+    private function log(string $level, string $message): void
+    {
+        if (isset($this->grav['log'])) {
+            $this->grav['log']->{$level}('mcp-server oauth: ' . $message);
+        }
+    }
+
+    /** Count a failed consent login on every throttle key; log the crossing into lockout. */
+    private function recordLoginFailure(array $throttleKeys): void
+    {
+        foreach ($throttleKeys as $key) {
+            $this->store->recordFailure($key, self::LOCKOUT_TTL);
+            // === not >=: the count gate at the top of authorizeSubmit() blocks
+            // further attempts, so each window crosses MAX_FAILURES exactly once.
+            if ($this->store->failureCount($key) === self::MAX_FAILURES) {
+                $this->log('warning', sprintf('consent lockout: "%s" locked for %d minutes after %d failed logins (last from %s)', $key, intdiv(self::LOCKOUT_TTL, 60), self::MAX_FAILURES, Uri::ip()));
+            }
+        }
+    }
 
     /** @return array<string, string> the OAuth params carried through the consent form */
     private function formParams(array $source): array
