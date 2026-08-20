@@ -157,9 +157,20 @@ if (($argv[1] ?? '') === '--child') {
     $grav = Grav::instance();
     // Grav::instance() resolves (and thereby freezes) some services during its
     // own boot; Pimple's offsetUnset clears both the value and the frozen flag.
-    foreach (['config', 'uri', 'locator', 'accounts'] as $service) {
+    foreach (['config', 'uri', 'locator', 'accounts', 'log'] as $service) {
         unset($grav[$service]);
     }
+    // Log lines land in a file so the parent can assert the security trail.
+    $grav['log'] = new class($dataDir) {
+        public function __construct(private readonly string $dir)
+        {
+        }
+
+        public function __call(string $level, array $args): void
+        {
+            \file_put_contents($this->dir . '/grav.log', $level . ': ' . (string) ($args[0] ?? '') . "\n", FILE_APPEND);
+        }
+    };
     $grav['config'] = new Config([
         'security' => ['salt' => 'oauth-flow-test-salt'],
         'site' => ['title' => 'OAuth Flow Test'],
@@ -337,6 +348,7 @@ $meta = oauth('GET', '/.well-known/oauth-authorization-server');
 $metaBody = json_decode($meta['body'], true);
 check($meta['status'] === 200 && $metaBody['issuer'] === 'https://site.test', 'AS metadata served with correct issuer');
 check($metaBody['code_challenge_methods_supported'] === ['S256'], 'metadata advertises S256 only');
+check(in_array('Cache-Control: no-store', $meta['headers'], true), 'JSON responses carry Cache-Control: no-store (RFC 6749 §5.1)');
 
 // 2. Registration enforces the redirect-host allowlist.
 $evil = oauth('POST', '/mcp/oauth/register', [], [], '{"redirect_uris":["https://evil.example/cb"],"client_name":"Evil"}');
@@ -375,6 +387,7 @@ check(($noPkceRedirect['iss'] ?? '') === 'https://site.test', 'error redirects c
 $consent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
 $sig = consentSignature($consent['body']);
 check($sig['sig'] !== '', 'consent form carries an HMAC signature');
+check(in_array('X-Frame-Options: DENY', $consent['headers'], true), 'the consent page refuses to be framed (RFC 6749 §10.13)');
 $tampered = oauth('POST', '/mcp/oauth/authorize', [], array_merge($authParams($clientId), $sig, [
     'redirect_uri' => 'https://client.example/other', 'username' => 'alice', 'password' => 'pw-alice',
 ]));
@@ -451,20 +464,71 @@ $keysBefore = (string) file_get_contents($keysFile);
 $refreshPost = static fn(string $token): array => ['grant_type' => 'refresh_token', 'refresh_token' => $token, 'client_id' => $GLOBALS['clientId']];
 $rotated = json_decode(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $issued['refresh_token']))['body'], true);
 check(str_starts_with((string) ($rotated['access_token'] ?? ''), 'grav_') && $rotated['access_token'] !== $issued['access_token'], 'refresh issues a new access key');
-$reused = oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $issued['refresh_token']));
-check($reused['status'] === 400, 'a refresh token is single-use (rotation)');
 $keysAfter = (string) file_get_contents($keysFile);
 $countKeys = static fn(string $yaml): int => substr_count($yaml, 'username: alice');
 check($countKeys($keysAfter) === $countKeys($keysBefore), 'rotation revoked the superseded access key (no key pile-up)');
 
-// 11. Revocation: killing the refresh token kills the access key too; no oracle.
-$revoked = oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $rotated['refresh_token']]);
+// 10a. Replay = theft (OAuth 2.1): reusing the rotated-away token kills the
+// whole family — the descendant refresh token AND its access key.
+$reused = oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $issued['refresh_token']));
+check($reused['status'] === 400, 'a replayed refresh token gets invalid_grant');
+$afterTheft = oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $rotated['refresh_token']));
+check($afterTheft['status'] === 400, 'the replay revoked the descendant refresh token');
+check(!str_contains((string) file_get_contents($keysFile), substr((string) $rotated['access_token'], 0, 12)), 'the replay revoked the descendant access key');
+
+// 10b. Scope honoring: junk-only requests are refused, recognized scopes ride
+// the consent screen, the minted key, and the token responses.
+$junkScope = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['scope' => 'openid profile']));
+check((redirectParams($junkScope)['error'] ?? '') === 'invalid_scope', 'a wholly unrecognized scope is refused, never silently escalated to unscoped');
+
+$unscopedConsent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
+check(str_contains($unscopedConsent['body'], 'full account access'), 'the consent screen names an unscoped grant full account access');
+check(str_contains($unscopedConsent['body'], 'capped by the account you sign in with'), 'the consent screen explains the account-permission cap');
+
+// In production the full-access branch also carries a collapsed <details>
+// list of the advertised vocabulary; this harness has no ToolRegistry, so
+// no vocabulary and no list — the open "limited to" list must stay absent.
+$starConsent = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['scope' => '*']));
+check(str_contains($starConsent['body'], 'full account access') && !str_contains($starConsent['body'], '<li>'), 'a wildcard request is named full account access, not listed as a limitation');
+
+$scopedParams = array_merge($authParams($clientId), ['scope' => 'api.pages.read openid']);
+$scopedConsent = oauth('GET', '/mcp/oauth/authorize', $scopedParams);
+// The raw request still rides the hidden form fields (HMAC round-trip), so
+// assert on the rendered grant list, not the whole body.
+check(str_contains($scopedConsent['body'], '<li><code>api.pages.read</code></li>') && !str_contains($scopedConsent['body'], '<code>openid'), 'the consent screen lists the granted scopes, not the raw request');
+
+$scopedPost = array_merge($scopedParams, consentSignature($scopedConsent['body']), ['username' => 'alice', 'password' => 'pw-alice']);
+$scopedGrant = redirectParams(oauth('POST', '/mcp/oauth/authorize', [], $scopedPost));
+$scopedToken = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost((string) ($scopedGrant['code'] ?? ''), VERIFIER))['body'], true);
+check(($scopedToken['scope'] ?? '') === 'api.pages.read', 'the token response echoes the granted scope (unrecognized entries filtered out)');
+check(preg_match('/scopes:\s+-\s+api\.pages\.read/', (string) file_get_contents($keysFile)) === 1, 'the minted key carries the granted scope as its cap');
+
+$scopedRotated = json_decode(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $scopedToken['refresh_token']))['body'], true);
+check(($scopedRotated['scope'] ?? '') === 'api.pages.read', 'refresh keeps the granted scope');
+oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $scopedRotated['refresh_token']]);
+
+// scopes_supported in the served metadata needs the plugin autoloader, which
+// this harness doesn't register — the derivation is asserted in smoke.php.
+check(!array_key_exists('scope', (array) $issued), 'an unscoped grant has no scope member in the token response');
+
+// 11. Revocation: killing the refresh token kills the access key too; no
+// oracle. On a fresh grant — the previous family died in the theft sweep.
+$code4 = obtainCode($clientId, $authParams($clientId), 'alice', 'pw-alice');
+$freshPair = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost($code4, VERIFIER))['body'], true);
+$revoked = oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $freshPair['refresh_token']]);
 check($revoked['status'] === 200, 'revocation returns 200');
-$afterRevoke = oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $rotated['refresh_token']));
+$afterRevoke = oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $freshPair['refresh_token']));
 check($afterRevoke['status'] === 400, 'a revoked refresh token is dead');
-check(!str_contains((string) file_get_contents($keysFile), substr((string) $rotated['access_token'], 0, 12)), 'revoking the refresh token revoked its access key');
+check(!str_contains((string) file_get_contents($keysFile), substr((string) $freshPair['access_token'], 0, 12)), 'revoking the refresh token revoked its access key');
 $unknown = oauth('POST', '/mcp/oauth/revoke', [], ['token' => 'grav_' . str_repeat('0', 48)]);
 check($unknown['status'] === 200, 'revoking an unknown token still returns 200 (no validity oracle)');
+
+// 12. The security trail: approval, lockout crossing, and replay each log.
+$securityLog = (string) file_get_contents(FLOW_DATA_DIR . '/grav.log');
+check(str_contains($securityLog, 'consent approved: user "alice"') && str_contains($securityLog, 'full account access'), 'a consent approval is logged with user and grant');
+check(str_contains($securityLog, 'scopes "api.pages.read"'), 'a scoped approval logs the granted scopes');
+check(str_contains($securityLog, 'consent lockout'), 'crossing into lockout is logged');
+check(str_contains($securityLog, 'refresh token replay'), 'a replayed refresh token is logged as theft');
 
 // Cleanup.
 array_map('unlink', glob(FLOW_DATA_DIR . '/mcp-server/*') ?: []);

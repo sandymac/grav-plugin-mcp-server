@@ -71,10 +71,10 @@ class OAuthServer
         // intercepts — a looser rule here would serve metadata at garbage
         // suffixes the moment the outer gate changes.
         if (in_array($path, ['/.well-known/oauth-authorization-server', '/.well-known/oauth-authorization-server' . $this->route], true)) {
-            $this->json(200, self::authorizationServerMetadata($base, $this->route));
+            $this->json(200, self::authorizationServerMetadata($base, $this->route, self::supportedScopes()));
         }
         if (in_array($path, ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource' . $this->route], true)) {
-            $this->json(200, self::protectedResourceMetadata($base, $this->route));
+            $this->json(200, self::protectedResourceMetadata($base, $this->route, self::supportedScopes()));
         }
 
         match ($path) {
@@ -86,8 +86,11 @@ class OAuthServer
         };
     }
 
-    /** @return array<string, mixed> RFC 8414 metadata (pure, testable without Grav) */
-    public static function authorizationServerMetadata(string $base, string $route): array
+    /**
+     * @param list<string> $scopes advertised as scopes_supported (omitted when empty)
+     * @return array<string, mixed> RFC 8414 metadata (pure, testable without Grav)
+     */
+    public static function authorizationServerMetadata(string $base, string $route, array $scopes = []): array
     {
         return [
             'issuer' => $base,
@@ -100,17 +103,83 @@ class OAuthServer
             'code_challenge_methods_supported' => ['S256'],
             'token_endpoint_auth_methods_supported' => ['none'],
             'revocation_endpoint_auth_methods_supported' => ['none'],
-        ];
+        ] + ($scopes !== [] ? ['scopes_supported' => $scopes] : []);
     }
 
-    /** @return array<string, mixed> RFC 9728 metadata (pure, testable without Grav) */
-    public static function protectedResourceMetadata(string $base, string $route): array
+    /**
+     * @param list<string> $scopes advertised as scopes_supported (omitted when empty)
+     * @return array<string, mixed> RFC 9728 metadata (pure, testable without Grav)
+     */
+    public static function protectedResourceMetadata(string $base, string $route, array $scopes = []): array
     {
         return [
             'resource' => $base . $route,
             'authorization_servers' => [$base],
             'bearer_methods_supported' => ['header'],
-        ];
+        ] + ($scopes !== [] ? ['scopes_supported' => $scopes] : []);
+    }
+
+    /**
+     * The scope vocabulary we advertise: the distinct permissions the MCP tools
+     * enforce, straight from ToolRegistry — param-map CI keeps those in lockstep
+     * with what the api plugin's routes actually check. Soft: bare-protocol
+     * tests load OAuthServer without the tool classes, and metadata without
+     * scopes_supported is still valid.
+     *
+     * @return list<string>
+     */
+    public static function supportedScopes(): array
+    {
+        if (!class_exists(\Grav\Plugin\McpServer\ToolRegistry::class)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_keys((new \Grav\Plugin\McpServer\ToolRegistry(null))->permissionMap())));
+    }
+
+    /**
+     * Whether a granted scope set limits nothing: the wildcard, or coverage of
+     * every advertised scope. Clients like claude.ai request the whole
+     * scopes_supported list by default, and the consent screen must call that
+     * "full account access" rather than imply a careful selection.
+     */
+    public static function coversAllSupported(array $scopes): bool
+    {
+        if (in_array('*', $scopes, true)) {
+            return true;
+        }
+
+        $supported = self::supportedScopes();
+        if ($supported === []) {
+            return false; // no vocabulary to compare against (bare-protocol tests)
+        }
+        foreach ($supported as $permission) {
+            if (!\Grav\Plugin\McpServer\ToolRegistry::scopeAllows($scopes, $permission)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The scope entries this server recognizes: api.* permissions (what the
+     * tools enforce), admin.super, or the wildcard. Anything else — openid,
+     * email, and other habits clients bring — is dropped; the client learns
+     * what was granted from the token response's scope member (RFC 6749 §3.3).
+     *
+     * @return list<string> normalized and deduplicated
+     */
+    public static function filterScopes(string $scope): array
+    {
+        $kept = [];
+        foreach (preg_split('/\s+/', trim($scope)) ?: [] as $entry) {
+            if ($entry === '*' || $entry === 'admin.super' || str_starts_with($entry, 'api.')) {
+                $kept[$entry] = true;
+            }
+        }
+
+        return array_keys($kept);
     }
 
     /** RFC 7636: base64url(sha256(verifier)) must equal the stored challenge. */
@@ -245,6 +314,11 @@ class OAuthServer
         if ($params['resource'] !== '' && rtrim($params['resource'], '/') !== $base . $this->route) {
             $this->redirectBack($params, ['error' => 'invalid_target']);
         }
+        if ($params['scope'] !== '' && self::filterScopes($params['scope']) === []) {
+            // Every requested entry is unrecognized. Granting the unscoped
+            // fallback would hand over MORE than asked — refuse instead.
+            $this->redirectBack($params, ['error' => 'invalid_scope', 'error_description' => 'No requested scope is recognized; use api.* permission scopes or omit scope for full account access']);
+        }
 
         $this->renderConsent($client, $params, null);
     }
@@ -294,9 +368,7 @@ class OAuthServer
             && $user->authenticate((string) ($_POST['password'] ?? ''));
 
         if (!$ok) {
-            foreach ($throttleKeys as $key) {
-                $this->store->recordFailure($key, self::LOCKOUT_TTL);
-            }
+            $this->recordLoginFailure($throttleKeys);
             // The fixed delay stays as a per-request cost on top of the counter.
             usleep(500000);
             $this->renderConsent($client, $params, 'Invalid credentials.');
@@ -313,9 +385,7 @@ class OAuthServer
             }
             $code = preg_replace('/\s+/', '', (string) ($_POST['twofa'] ?? ''));
             if ($code === '' || !(new \Grav\Plugin\Login\TwoFactorAuth\TwoFactorAuth())->verifyCode($totpSecret, $code)) {
-                foreach ($throttleKeys as $key) {
-                    $this->store->recordFailure($key, self::LOCKOUT_TTL);
-                }
+                $this->recordLoginFailure($throttleKeys);
                 usleep(500000);
                 $this->renderConsent($client, $params, 'Invalid two-factor code.');
             }
@@ -329,6 +399,14 @@ class OAuthServer
 
         $this->store->clearFailures(...$throttleKeys);
 
+        // Same guard as the GET render: a signed form can only carry a scope
+        // that passed it, but never let "all entries unrecognized" degenerate
+        // into an unscoped (broader) grant.
+        $granted = self::filterScopes($params['scope']);
+        if ($params['scope'] !== '' && $granted === []) {
+            $this->redirectBack($params, ['error' => 'invalid_scope']);
+        }
+
         // The code is bound to the resolved account, not to whatever was typed.
         $username = (string) $user->get('username');
 
@@ -338,9 +416,20 @@ class OAuthServer
             'username' => $username,
             'redirect_uri' => $params['redirect_uri'],
             'challenge' => $params['code_challenge'],
-            'scope' => $params['scope'],
+            // The granted (recognized) scopes, normalized — what the consent
+            // screen displayed, what the key will carry.
+            'scope' => implode(' ', $granted),
             'expires' => time() + self::CODE_TTL,
         ]);
+
+        $this->log('info', sprintf(
+            'consent approved: user "%s" granted %s to client "%s" (%s) from %s',
+            $username,
+            $granted === [] ? 'full account access' : 'scopes "' . implode(' ', $granted) . '"',
+            (string) ($client['client_name'] ?? 'MCP client'),
+            (string) (parse_url($params['redirect_uri'], PHP_URL_HOST) ?? ''),
+            Uri::ip(),
+        ));
 
         $this->redirectBack($params, ['code' => $code]);
     }
@@ -380,9 +469,34 @@ class OAuthServer
     {
         $token = $this->store->takeRefresh(hash('sha256', (string) ($_POST['refresh_token'] ?? '')));
 
-        if ($token === null
-            || (int) $token['expires'] < time()
-            || $token['client_id'] !== (string) ($_POST['client_id'] ?? '')) {
+        if ($token === null || (int) $token['expires'] < time()) {
+            $this->json(400, ['error' => 'invalid_grant']);
+        }
+
+        if (!empty($token['used'])) {
+            // A replayed refresh token means two parties hold this grant and
+            // one of them is a thief (OAuth 2.1 treats rotation reuse exactly
+            // so). Revoke the whole family — every live descendant refresh
+            // token and its access key — instead of leaving the successor
+            // alive in unknown hands.
+            $keyIds = $this->store->revokeFamily((string) ($token['family'] ?? ''));
+            $user = $this->grav['accounts']->load((string) $token['username']);
+            if ($user->exists()) {
+                $manager = new ApiKeyManager();
+                foreach ($keyIds as $keyId) {
+                    $manager->revokeKey($user, $keyId);
+                }
+            }
+            $this->log('warning', sprintf(
+                'refresh token replay for user "%s" (client %s): revoked %d descendant token(s) as stolen',
+                (string) $token['username'],
+                (string) $token['client_id'],
+                count($keyIds),
+            ));
+            $this->json(400, ['error' => 'invalid_grant']);
+        }
+
+        if ($token['client_id'] !== (string) ($_POST['client_id'] ?? '')) {
             $this->json(400, ['error' => 'invalid_grant']);
         }
 
@@ -392,10 +506,10 @@ class OAuthServer
             (new ApiKeyManager())->revokeKey($user, (string) $token['key_id']);
         }
 
-        $this->issueTokens((string) $token['client_id'], (string) $token['username'], (string) ($token['scope'] ?? ''));
+        $this->issueTokens((string) $token['client_id'], (string) $token['username'], (string) ($token['scope'] ?? ''), (string) ($token['family'] ?? ''));
     }
 
-    private function issueTokens(string $clientId, string $username, string $scope): never
+    private function issueTokens(string $clientId, string $username, string $scope, string $family = ''): never
     {
         $user = $this->grav['accounts']->load($username);
         if (!$user->exists() || (string) $user->get('state', 'enabled') !== 'enabled') {
@@ -406,10 +520,15 @@ class OAuthServer
         $accessDays = max(1, (int) $this->grav['config']->get('plugins.mcp-server.oauth.access_token_days', 7));
         $refreshDays = max(1, (int) $this->grav['config']->get('plugins.mcp-server.oauth.refresh_token_days', 90));
 
+        // The key carries the granted scopes as its cap; effective access is
+        // always this cap intersected with the account's live permissions,
+        // enforced by the api plugin on every request. Empty = unscoped.
+        $scopes = self::filterScopes($scope);
+
         $key = (new ApiKeyManager())->generateKey(
             $user,
             sprintf('MCP OAuth: %s (%s)', $client['client_name'] ?? 'MCP client', substr($clientId, 0, 8)),
-            [],
+            $scopes,
             $accessDays,
         );
 
@@ -418,16 +537,21 @@ class OAuthServer
             'client_id' => $clientId,
             'username' => $username,
             'key_id' => $key['id'],
-            'scope' => $scope,
+            'scope' => implode(' ', $scopes),
+            // The rotation lineage: replay of any used ancestor revokes the
+            // whole family. Empty on pre-family tokens — they start one here.
+            'family' => $family !== '' ? $family : bin2hex(random_bytes(8)),
             'expires' => time() + $refreshDays * 86400,
         ]);
 
+        // RFC 6749 §5.1: scope is REQUIRED when it differs from the request —
+        // filtering means it can, so always say what was actually granted.
         $this->json(200, [
             'access_token' => $key['key'],
             'token_type' => 'Bearer',
             'expires_in' => $accessDays * 86400,
             'refresh_token' => $refresh,
-        ]);
+        ] + ($scopes !== [] ? ['scope' => implode(' ', $scopes)] : []));
     }
 
     // --- Revocation endpoint (RFC 7009) ---
@@ -477,6 +601,32 @@ class OAuthServer
 
     // --- Helpers ---
 
+    /**
+     * Security events into grav.log: a consent turning a password into a
+     * 90-day key, a lockout, a replayed refresh token — the trail an admin
+     * reads after a stolen password. Soft: bare-container tests have no log
+     * service, and losing a log line must never fail the flow itself.
+     */
+    private function log(string $level, string $message): void
+    {
+        if (isset($this->grav['log'])) {
+            $this->grav['log']->{$level}('mcp-server oauth: ' . $message);
+        }
+    }
+
+    /** Count a failed consent login on every throttle key; log the crossing into lockout. */
+    private function recordLoginFailure(array $throttleKeys): void
+    {
+        foreach ($throttleKeys as $key) {
+            $this->store->recordFailure($key, self::LOCKOUT_TTL);
+            // === not >=: the count gate at the top of authorizeSubmit() blocks
+            // further attempts, so each window crosses MAX_FAILURES exactly once.
+            if ($this->store->failureCount($key) === self::MAX_FAILURES) {
+                $this->log('warning', sprintf('consent lockout: "%s" locked for %d minutes after %d failed logins (last from %s)', $key, intdiv(self::LOCKOUT_TTL, 60), self::MAX_FAILURES, Uri::ip()));
+            }
+        }
+    }
+
     /** @return array<string, string> the OAuth params carried through the consent form */
     private function formParams(array $source): array
     {
@@ -504,6 +654,33 @@ class OAuthServer
         $host = $e((string) (parse_url($params['redirect_uri'], PHP_URL_HOST) ?? ''));
         $errorHtml = $error !== null ? '<p class="error">' . $e($error) . '</p>' : '';
 
+        // Show what approval hands over: the granted (recognized) scopes — the
+        // same list the minted key will carry. A request that limits nothing
+        // (none, wildcard, or the whole advertised vocabulary — claude.ai
+        // requests everything scopes_supported lists) is named for what it is
+        // instead of dressed up as a 20-item "limitation".
+        $scopes = self::filterScopes($params['scope']);
+        $li = static fn(string $s): string => '<li><code>' . $e($s) . '</code></li>';
+        if ($scopes === [] || self::coversAllSupported($scopes)) {
+            $grants = '<p>Approving grants <strong>full account access</strong> — '
+                . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
+                . '</p>';
+            // The expansion is the advertised vocabulary, collapsed by default:
+            // the point of this branch is that the list is not a limitation,
+            // so it's there for the curious, not in everyone's way.
+            $supported = self::supportedScopes();
+            if ($supported !== []) {
+                $grants .= '<details><summary>What full access covers</summary><ul>'
+                    . implode('', array_map($li, $supported))
+                    . '</ul></details>';
+            }
+        } else {
+            $grants = '<p>Approving grants access limited to:</p><ul>'
+                . implode('', array_map($li, $scopes))
+                . '</ul>';
+        }
+        $grants .= '<p class="cap">Whatever you approve is capped by the account you sign in with: the connector can never do more than that account\'s own permissions allow.</p>';
+
         $hidden = '';
         foreach ($this->formParams($params) as $k => $v) {
             $hidden .= '<input type="hidden" name="' . $k . '" value="' . $e($v) . '">';
@@ -514,6 +691,7 @@ class OAuthServer
         $this->html(200, <<<HTML
             <h1>{$site}</h1>
             <p><strong>{$name}</strong> ({$host}) is requesting MCP access to this site.</p>
+            {$grants}
             <p>Sign in with your Grav account to approve.</p>
             {$errorHtml}
             <form method="post" autocomplete="off">
@@ -547,6 +725,9 @@ class OAuthServer
     {
         http_response_code($status);
         header('Content-Type: application/json');
+        // RFC 6749 §5.1: token responses carry credentials — never cacheable.
+        // Blanket no-store: everything else served here is trivially regenerated.
+        header('Cache-Control: no-store');
         echo json_encode($body, JSON_UNESCAPED_SLASHES);
         exit;
     }
@@ -555,6 +736,8 @@ class OAuthServer
     {
         http_response_code($status);
         header('Content-Type: text/html; charset=utf-8');
+        // RFC 6749 §10.13: the consent page must never render inside a frame.
+        header('X-Frame-Options: DENY');
         $logo = self::LOGO;
         $favicon = 'data:image/svg+xml,' . rawurlencode(str_replace("\n", '', self::LOGO));
         echo <<<HTML
@@ -566,6 +749,9 @@ class OAuthServer
               body{font-family:system-ui,sans-serif;max-width:24rem;margin:10vh auto;padding:0 1rem;color:#222}
               body>svg{display:block;width:3rem;height:3rem}
               h1{font-size:1.5rem;margin:.75rem 0 1rem}
+              .cap{color:#555;font-size:.9rem}
+              details{margin:.75rem 0}
+              summary{cursor:pointer;color:#555;font-size:.9rem}
               label{display:block;margin:.75rem 0}
               input[type=text],input[type=password]{width:100%;padding:.5rem;box-sizing:border-box}
               .buttons{margin-top:1rem;display:flex;gap:.5rem}

@@ -18,7 +18,7 @@ use Grav\Common\Grav;
 class McpServer
 {
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
-    public const string VERSION = '1.0.2';
+    public const string VERSION = '1.0.3';
 
     /** Matches the api dependency floor in blueprints.yaml — smoke asserts they agree. */
     public const string MIN_API_VERSION = '1.0.19';
@@ -60,6 +60,7 @@ class McpServer
 
         if ($response === null) {
             http_response_code(202); // notification: acknowledged, no body
+            $this->stripPlantedSessionCookie();
             exit;
         }
 
@@ -257,7 +258,66 @@ class McpServer
     {
         http_response_code($status);
         header('Content-Type: application/json');
+        $this->stripPlantedSessionCookie();
         echo json_encode($body, JSON_UNESCAPED_SLASHES);
         exit;
+    }
+
+    /**
+     * Stop a stateless MCP call from planting the shared front-end PHP
+     * session cookie.
+     *
+     * This endpoint isn't under `/admin`, so it rides the front-end
+     * `grav-site-*` session cookie (no `-admin` split). Bearer auth never
+     * sends that cookie, so Grav still starts a fresh session during boot
+     * and queues a `Set-Cookie` for it; emitted, that cookie overwrites the
+     * session of a visitor logged in to the public site in the same browser
+     * and boots them out, then repeats on every poll. Ported from
+     * grav-plugin-api's `ApiRouter::protectSharedSession()` (admin2#79, #88).
+     *
+     * Every MCP call is bearer-only and stateless — there's no SSO hand-off
+     * parking state in the session the way the api plugin's stateful
+     * endpoints do, so unlike the source method there's no exemption to
+     * carry over here.
+     */
+    private function stripPlantedSessionCookie(): void
+    {
+        if ($this->grav === null || headers_sent() || !isset($this->grav['session'])) {
+            return;
+        }
+
+        $sessionName = $this->grav['session']->getName();
+        if (!$sessionName || isset($_COOKIE[$sessionName])) {
+            // No session name resolved, or the caller brought its own
+            // session cookie — there is nothing freshly-minted to strip.
+            return;
+        }
+
+        // Remove only the just-planted session cookie, preserving every
+        // other Set-Cookie (CORS, etc.). Mirrors the header rewrite in
+        // Grav\Framework\Session\Session::removeCookie(), which we can't
+        // call (protected). The leading space matches "Set-Cookie: <name>=".
+        $needle = " {$sessionName}=";
+        $kept = [];
+        $found = false;
+        foreach (headers_list() as $header) {
+            if (stripos($header, 'Set-Cookie:') !== 0) {
+                continue;
+            }
+            if (str_contains($header, $needle)) {
+                $found = true;
+            } else {
+                $kept[] = $header;
+            }
+        }
+
+        if (!$found) {
+            return;
+        }
+
+        header_remove('Set-Cookie');
+        foreach ($kept as $header) {
+            header($header, false);
+        }
     }
 }
