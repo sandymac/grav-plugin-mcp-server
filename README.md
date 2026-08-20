@@ -9,7 +9,7 @@ Works with **hosted connectors** (built-in OAuth 2.1 authorization server with d
 ## How it relates to the existing pieces
 
 - [grav-plugin-api](https://github.com/getgrav/grav-plugin-api) — REST API + API key management. **Required**: this plugin is a thin MCP translation layer over it — Bearer auth reuses its `grav_...` API keys, OAuth access tokens are minted through its `ApiKeyManager`, and tools reuse its services rather than duplicating them.
-- [grav-mcp](https://github.com/getgrav/grav-mcp) — the local-process MCP server that bridges stdio → Grav REST API. This plugin replaces it by serving MCP from the site itself; the tool surface tracks the API plugin directly (see [DECISIONS.md](DECISIONS.md)).
+- [grav-mcp](https://github.com/getgrav/grav-mcp) — the local-process MCP server that bridges stdio → Grav REST API, for local clients like Claude Code and Cursor on your own machine. This plugin complements it as the hosted alternative: MCP served from the site itself, for hosted connectors like claude.ai and ChatGPT where a local process isn't an option. The tool surface tracks the API plugin directly (see [DECISIONS.md](DECISIONS.md)).
 
 ## Requirements
 
