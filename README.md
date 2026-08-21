@@ -24,16 +24,15 @@ logs a warning at client handshake, and `site_info` reports `api_plugin_version`
 
 ## Installation
 
-Once this plugin is included in the Grav plugin directory, install it with GPM — the
-preferred path, since GPM also installs the required API plugin and enforces its
-version floor:
+Install with GPM — the preferred path, since GPM also installs the required API plugin
+and enforces its version floor ([directory listing](https://getgrav.org/downloads/plugins#mcp-server)):
 
 ```bash
 bin/gpm install mcp-server
 ```
 
-Until then — or for development — clone into your site's plugin folder; the directory
-name must be `mcp-server`:
+For development, clone into your site's plugin folder instead; the directory name must
+be `mcp-server`:
 
 ```bash
 cd user/plugins
