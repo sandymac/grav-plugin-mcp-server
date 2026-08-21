@@ -63,6 +63,10 @@ triage here**. The machinery:
    README Requirements line.
 6. **Verify + ship.** Smoke, param-map, PHPStan all green → bump plugin version
    (blueprints.yaml + `McpServer::VERSION`, smoke asserts they match) → changelog entry →
-   GitHub release. GPM picks up updates automatically.
+   GitHub release. Publishing the release triggers `release-asset.yml`, which attaches a
+   slim `mcp-server-<version>.zip` (dev files stripped via `.gitattributes` export-ignore);
+   GPM serves that asset instead of the source zipball, so install counts show up in
+   `gh api repos/sandymac/grav-plugin-mcp-server/releases --jq '.[].assets[] | .name, .download_count'`.
+   GPM picks up updates automatically.
 
 Machine- and deployment-specific notes live in `CLAUDE.local.md` (untracked).
