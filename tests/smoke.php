@@ -457,7 +457,7 @@ check($rows['/demo']['query'] === ['limit'], 'the query keys a controller reads 
 check($rows['/demo']['body'] === ['slug', 'title'] && $rows['/demo']['body_required'] === ['title'], 'requireFields shows up as both a body key and a requirement');
 check($rows['/demo/handed-off']['permission'] === 'api.demo.write', 'a literal permission is reported as-is');
 check($rows['/demo/handed-off']['query'] === 'opaque', 'a query array handed off whole reads "opaque"');
-check($rows['/demo/handed-off']['body'] === 'opaque', 'a side with no readable source reads "opaque" too');
+check($rows['/demo/handed-off']['body'] === [], 'a side the controller never reads is an empty list, not "opaque"');
 check($rows['/demo/runtime']['permission'] === 'dynamic', 'a permission decided at runtime reads "dynamic"');
 check($rows['/demo/open']['permission'] === 'unknown', 'an action enforcing nothing recoverable reads "unknown"');
 check(

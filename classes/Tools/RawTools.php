@@ -161,8 +161,11 @@ final class RawTools
             $seen = [];
             $reads = RouteIntrospection::walk($cut === false ? \dirname($apiDir) : substr($apiDir, 0, $cut), $action, $seen, $file);
             if ($reads !== null) {
-                $row['query'] = !$reads['hasQuery'] || $reads['queryHandedOff'] ? 'opaque' : $reads['query'];
-                $row['body'] = !$reads['hasBody'] || $reads['bodyHandedOff'] ? 'opaque' : $reads['body'];
+                // "opaque" strictly means handed off whole; a side the controller
+                // never reads is an empty list — it accepts nothing, and calling
+                // it opaque would invite callers to send arbitrary keys.
+                $row['query'] = $reads['queryHandedOff'] ? 'opaque' : $reads['query'];
+                $row['body'] = $reads['bodyHandedOff'] ? 'opaque' : $reads['body'];
                 $row['body_required'] = $reads['required'];
             }
         } catch (\Throwable) {
