@@ -70,3 +70,13 @@ triage here**. The machinery:
    GPM picks up updates automatically.
 
 Machine- and deployment-specific notes live in `CLAUDE.local.md` (untracked).
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on sandymac/grav-plugin-mcp-server via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at the repo root; decisions live in `DECISIONS.md` (this repo's ADR log). See `docs/agents/domain.md`.
