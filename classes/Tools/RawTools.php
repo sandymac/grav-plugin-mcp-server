@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Grav\Plugin\McpServer\Tools;
 
 use Grav\Plugin\McpServer\ApiBridge;
+use Grav\Plugin\McpServer\RouteIntrospection;
 
 /**
  * Raw passthrough: one tool that dispatches an arbitrary request through the
@@ -64,7 +65,7 @@ final class RawTools
                 'descriptor' => [
                     'name' => 'list_api_routes',
                     'title' => 'List API Routes',
-                    'description' => 'Lists the live grav-plugin-api REST route table — every route api_request can call, core routes plus whatever other plugins registered on this site. Filter with search (case-insensitive substring of "METHOD /path"), method, and prefix; limit defaults to 50. Returns {api_root, routes, total_matched}; each row is {method, path} and may carry detail recovered from the controller source (permission, query, body). [Requires: api.mcp-server.raw]',
+                    'description' => 'Lists the live grav-plugin-api REST route table — every route api_request can call, core routes plus whatever other plugins registered on this site. Filter with search (case-insensitive substring of "METHOD /path"), method, and prefix; limit defaults to 50. Returns {api_root, routes, total_matched}; each row is {method, path} plus whatever the controller source gives up — permission, query, body, body_required. A permission reads "dynamic" when the route decides it at runtime and "unknown" when it cannot be recovered; a query or body side the controller hands off whole reads "opaque". [Requires: api.mcp-server.raw]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -109,13 +110,66 @@ final class RawTools
 
         return ApiBridge::toolJson([
             'api_root' => $api->apiRoot(),
-            'routes' => array_map(
-                static fn(array $route): array => ['method' => $route['method'], 'path' => $route['path']],
-                array_slice($matched, 0, $limit)
-            ),
+            // Detail is recovered per row, so only the page actually returned
+            // pays for the source analysis.
+            'routes' => array_map(self::detail(...), array_slice($matched, 0, $limit)),
             'total_matched' => count($matched),
             'hint' => 'Every row is callable with api_request: pass its method and path (paths are relative to api_root).',
         ]);
+    }
+
+    /**
+     * One row plus whatever the controller's source gives up: the permission it
+     * enforces, and the query/body keys it reads. Never authoritative — the api
+     * plugin's own checks are — and never fatal: any analysis failure degrades
+     * the row to bare + permission "unknown".
+     *
+     * ponytail: re-analyzed on every call, no cache. Memoize keyed by the
+     * installed api plugin version if listings ever run hot enough to notice.
+     *
+     * @param array{method: string, path: string, handler: array} $route
+     * @return array<string, mixed>
+     */
+    private static function detail(array $route): array
+    {
+        $row = ['method' => $route['method'], 'path' => $route['path']];
+
+        try {
+            $class = (string) ($route['handler'][0] ?? '');
+            $action = (string) ($route['handler'][1] ?? '');
+            $file = $class === '' || !class_exists($class) ? false : (new \ReflectionClass($class))->getFileName();
+            if ($file === false || $action === '') {
+                return $row + ['permission' => 'unknown'];
+            }
+
+            // DYNAMIC = enforcement the analyzer can see but not resolve (a
+            // variable, a branch); several entries = several literal checks.
+            $permissions = array_map(
+                static fn(string $p): string => $p === 'DYNAMIC' ? 'dynamic' : $p,
+                RouteIntrospection::enforcedPermissions($file, $action)
+            );
+            $row['permission'] = match (count($permissions)) {
+                0 => 'unknown', // unreadable, or genuinely unenforced (public routes)
+                1 => $permissions[0],
+                default => $permissions,
+            };
+
+            // walk() resolves helper methods under <plugin>/classes/Api; a
+            // controller outside that layout simply resolves nothing.
+            $apiDir = str_replace('\\', '/', $file);
+            $cut = strpos($apiDir, '/classes/Api/');
+            $seen = [];
+            $reads = RouteIntrospection::walk($cut === false ? \dirname($apiDir) : substr($apiDir, 0, $cut), $action, $seen, $file);
+            if ($reads !== null) {
+                $row['query'] = !$reads['hasQuery'] || $reads['queryHandedOff'] ? 'opaque' : $reads['query'];
+                $row['body'] = !$reads['hasBody'] || $reads['bodyHandedOff'] ? 'opaque' : $reads['body'];
+                $row['body_required'] = $reads['required'];
+            }
+        } catch (\Throwable) {
+            return ['method' => $route['method'], 'path' => $route['path'], 'permission' => 'unknown'];
+        }
+
+        return $row;
     }
 
     private static function dispatch(ApiBridge $api, array $args): array

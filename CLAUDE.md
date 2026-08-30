@@ -7,6 +7,7 @@ A Grav CMS plugin (PHP 8.3+, matching Grav 2 core; Grav 2.0.17+) that serves an 
 - `mcp-server.php` — plugin entry (`McpServerPlugin`): route interception (MCP endpoint, `/.well-known/oauth-*`, `{route}/oauth/*`), autoload
 - `classes/McpServer.php` — Streamable HTTP transport + JSON-RPC dispatch (stateless: POST only, no SSE/sessions/batching)
 - `classes/ToolRegistry.php` — MCP tool descriptors + dispatch; this is where the tool surface grows
+- `classes/RouteIntrospection.php` — static analysis of api-plugin controller source (permission + params); shared by `tests/param-map.php` and the `list_api_routes` tool
 - `classes/OAuth/OAuthServer.php` — OAuth 2.1 AS for claude.ai: discovery metadata, DCR, login/consent, token endpoint (PKCE S256 mandatory)
 - `classes/OAuth/OAuthStore.php` — JSON store (`user/data/mcp-server/oauth.json`) for clients, code hashes, refresh-token hashes
 - `tests/smoke.php` — protocol smoke test, runs with bare PHP, no Grav install (`php tests/smoke.php`)
@@ -48,7 +49,7 @@ triage here**. The machinery:
    param names must be what the api controller *reads*, and its `permission` must match
    what the route *enforces* — param-map checks both. Routes with identity- or
    argument-dependent enforcement carry a reviewed entry in param-map's
-   `$permissionPolicy`. Mind the ceilings marked `ponytail:` in `tests/param-map.php` —
+   `$permissionPolicy`. Mind the ceilings marked `ponytail:` in `classes/RouteIntrospection.php` —
    some request sides are skipped as opaque.
 4. **New endpoints default to adoption** — the target is feature parity with the api
    plugin's REST surface. Exceptions: UI plumbing that serves the admin SPA (script

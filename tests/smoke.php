@@ -8,6 +8,7 @@ declare(strict_types=1);
  */
 
 require __DIR__ . '/../classes/ApiBridge.php';
+require __DIR__ . '/../classes/RouteIntrospection.php';
 foreach (glob(__DIR__ . '/../classes/Tools/*.php') as $domainFile) {
     require $domainFile;
 }
@@ -393,6 +394,78 @@ check($labels($listCall(['search' => 'nothing-alike'])) === [] && $listCall(['se
 $capped = $listCall(['limit' => 2]);
 check(count($capped['routes']) === 2 && $capped['total_matched'] === 5, 'limit caps the page but total_matched counts every match');
 check(count($listCall(['limit' => 9999])['routes']) === 5, 'an over-large limit is clamped, not fatal');
+
+// Route detail comes from the controller's own source, so drive it with a
+// fixture controller written here — smoke never assumes a .gravtest/ install.
+$fixture = sys_get_temp_dir() . '/mcp-route-fixture-' . getmypid() . '.php';
+file_put_contents($fixture, <<<'PHP'
+<?php
+namespace McpSmokeFixture;
+
+class DemoController
+{
+    private const string PERM = 'api.demo.read';
+
+    public function index($request)
+    {
+        $this->requirePermission($request, self::PERM);
+        $query = $request->getQueryParams();
+        $body = $this->getRequestBody($request);
+        $this->requireFields($body, ['title']);
+
+        return [$query['limit'] ?? null, $body['slug'] ?? null];
+    }
+
+    public function runtime($request)
+    {
+        $this->requirePermission($request, $this->permissionFor($request));
+    }
+
+    public function handedOff($request)
+    {
+        $this->requirePermission($request, 'api.demo.write');
+        $query = $request->getQueryParams();
+
+        return $this->service->run($query);
+    }
+
+    public function open($request)
+    {
+        return 'enforces nothing';
+    }
+}
+PHP);
+require $fixture;
+
+$detailBridge = new StubBridge();
+$demo = McpSmokeFixture\DemoController::class;
+$detailBridge->routeTable = [
+    ['method' => 'GET', 'path' => '/demo', 'handler' => [$demo, 'index']],
+    ['method' => 'GET', 'path' => '/demo/handed-off', 'handler' => [$demo, 'handedOff']],
+    ['method' => 'GET', 'path' => '/demo/open', 'handler' => [$demo, 'open']],
+    ['method' => 'GET', 'path' => '/demo/runtime', 'handler' => [$demo, 'runtime']],
+    ['method' => 'GET', 'path' => '/demo/vanished', 'handler' => ['McpSmokeFixture\\GoneController', 'index']],
+];
+$rows = array_column(
+    (array) json_decode(($list['handler'])($detailBridge, [])['content'][0]['text'], true)['routes'],
+    null,
+    'path'
+);
+
+check($rows['/demo']['permission'] === 'api.demo.read', 'a self::CONST permission is resolved to its literal');
+check($rows['/demo']['query'] === ['limit'], 'the query keys a controller reads are reported');
+check($rows['/demo']['body'] === ['slug', 'title'] && $rows['/demo']['body_required'] === ['title'], 'requireFields shows up as both a body key and a requirement');
+check($rows['/demo/handed-off']['permission'] === 'api.demo.write', 'a literal permission is reported as-is');
+check($rows['/demo/handed-off']['query'] === 'opaque', 'a query array handed off whole reads "opaque"');
+check($rows['/demo/handed-off']['body'] === 'opaque', 'a side with no readable source reads "opaque" too');
+check($rows['/demo/runtime']['permission'] === 'dynamic', 'a permission decided at runtime reads "dynamic"');
+check($rows['/demo/open']['permission'] === 'unknown', 'an action enforcing nothing recoverable reads "unknown"');
+check(
+    $rows['/demo/vanished'] === ['method' => 'GET', 'path' => '/demo/vanished', 'permission' => 'unknown'],
+    'an unloadable controller degrades to a bare row instead of failing the listing'
+);
+
+@unlink($fixture);
 
 // --- OAuth store: lockout + revocation mechanics (phase 5) ---
 

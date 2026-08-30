@@ -3,7 +3,9 @@
 
 1. [](#new)
     * New `api_request` tool: a raw passthrough to any grav-plugin-api REST route, for the routes no curated tool wraps. Takes a method, path, query, body, and headers, and returns `{status, content_type, body}` — JSON verbatim, text capped at 128KB, binary refused with its size instead of its bytes, and upstream RFC 7807 problem documents passed through untouched. It grants nothing: every request carries the caller's own API key, so the API plugin's per-route permission checks apply exactly as they do to a curated tool.
-    * New unlock-only permission `api.mcp-server.raw`, registered with Grav's ACL so it appears as a checkbox on the account's Access tab. It only controls whether `api_request` is visible and callable, and must be granted explicitly — a blanket `api` grant does not confer it.
+    * New unlock-only permission `api.mcp-server.raw`, registered with Grav's ACL so it appears as a checkbox on the account's Access tab. It only controls whether the raw-passthrough tools are visible and callable, and must be granted explicitly — a blanket `api` grant does not confer it.
+    * New `list_api_routes` tool: the live REST route table `api_request` can call — core routes plus whatever other plugins registered on the site, enumerated from the API plugin's own router rather than a hard-coded list. Filter by `search`, `method` and `prefix`; `limit` defaults to 50. Each row carries what the controller's own source gives up: the permission it enforces, and the query/body keys it reads (`"dynamic"` for a runtime-decided permission, `"unknown"` when nothing is recoverable, `"opaque"` for a side the controller hands off whole). Gated on the same `api.mcp-server.raw`.
+    * `api_request` now answers a 404 that matched no route with `suggestions`: up to five nearest live routes, ranked by shared path segments with the same method preferred.
 
 # v1.0.3
 ## 2026-08-20

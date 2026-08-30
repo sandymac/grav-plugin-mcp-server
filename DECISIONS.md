@@ -57,6 +57,36 @@ read its rationale first — most were validated against a live deployment.
    - **Exempt from param-map**: the tool's (method, path) tuple arrives at runtime, so
      there is no static request to cross-reference against the api plugin's route table —
      the thing param-map exists to check. Its contract is asserted in `smoke.php` instead.
+6. **Route introspection beside the raw passthrough** (2026-08-30): `list_api_routes`
+   answers "what can `api_request` call?", and a 404 that matched no route answers "did
+   you mean?". Both read the same two sources.
+   - **Live enumeration, not a source scan**: `ApiBridge::routes()` subclasses FastRoute's
+     `RouteCollector` so `addRoute()` records instead of compiling, then drives the real
+     `ApiRouter::registerCoreRoutes()` / `registerPluginRoutes()` through reflection.
+     Every alias, `addGroup()`, and the `ApiRouteCollector` forwarder funnel through
+     `addRoute()`, and `registerPluginRoutes()` fires the real `onApiRegisterRoutes`
+     event — so third-party routes are in the table, which a source scan of the api
+     plugin could never manage. Overridable, so Grav-less tests stub it.
+   - **One analyzer, two callers**: the controller-source analysis moved out of
+     `tests/param-map.php` into `classes/RouteIntrospection.php` (same bodies, same
+     `ponytail:` ceilings). param-map keeps its driver, `$permissionPolicy` and arg
+     synthesis. Route detail therefore follows the *installed* api version rather than
+     anything hand-maintained here, and the analyzer has a second consumer keeping it
+     honest.
+   - **Honest gaps over confident guesses**: `permission` is `"dynamic"` when the route
+     decides at runtime, `"unknown"` when nothing recoverable is enforced or the class
+     is unreadable, and a list when several literal checks apply; `query`/`body` read
+     `"opaque"` when the controller hands the array off whole. A per-row analysis
+     failure degrades that row to bare + `"unknown"` — never an error, never a fatal.
+     Detail is a hint for choosing a call, never an authority: the api plugin's own
+     `requirePermission()` remains the only thing that decides.
+   - **Analysis is per returned page, and uncached**: only rows the response includes are
+     analyzed (filter, then limit, then analyze). No persistent cache — deferred until
+     it's proven correct and proven slow; the upgrade path is memoization keyed by the
+     installed api plugin version, noted at the call site.
+   - **Same unlock-only gate**: `api.mcp-server.raw`, no new permission. Listing routes a
+     caller can already call adds no authority. Exempt from param-map like `api_request`,
+     for the same reason: no static request to cross-reference.
 
 ## Non-decision: the OAuth server stays inside this plugin
 
@@ -110,7 +140,8 @@ can't sign in on our consent form; if that ever matters, session-based consent i
   cross-references what it sends (method, path, query/body keys, permission) against the
   api plugin's route table and the matched controller's own source. Born from an audit
   that found five shipped param-name bugs; this is the drift detector the `upstream-drift`
-  workflow runs against new api releases (see CLAUDE.md's triage runbook).
+  workflow runs against new api releases (see CLAUDE.md's triage runbook). The analysis
+  itself lives in `classes/RouteIntrospection.php`, shared with `list_api_routes`.
 - `tests/permission-gate.php` — the consent-screen permission check against real Grav +
   api-plugin classes (skips cleanly without a `.gravtest/` install).
 - `tests/oauth-flow.php` — drives the OAuth server through register → authorize →
