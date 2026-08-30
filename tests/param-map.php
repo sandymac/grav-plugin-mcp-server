@@ -677,6 +677,13 @@ $tools = (new ReflectionMethod(Grav\Plugin\McpServer\ToolRegistry::class, 'all')
     ->invoke(new Grav\Plugin\McpServer\ToolRegistry(null));
 
 foreach ($tools as $name => $tool) {
+    // The raw passthrough takes its (method, path) tuple from the caller at
+    // runtime, so there is no static request here to match against a route,
+    // its parameters, or its permission. Contract-checked in smoke.php instead.
+    if ($name === 'api_request') {
+        continue;
+    }
+
     foreach (argVariants($tool['descriptor']['inputSchema'] ?? []) as $args) {
         $bridge = new RecordingBridge();
         try {

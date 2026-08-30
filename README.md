@@ -103,9 +103,15 @@ curl -s https://grav.example.com/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
 ```
 
+## Raw API passthrough
+
+Routes with no curated tool are still reachable through `api_request`, which dispatches an arbitrary method and path — relative to the API root, e.g. `/pages` — through the same in-process router the curated tools use. It answers with `{status, content_type, body}` (JSON verbatim, text capped at 128KB, binary refused), and passes upstream RFC 7807 errors through untouched.
+
+It is hidden unless the account explicitly holds **MCP Server → Raw API passthrough** (`api.mcp-server.raw`) on its Access tab — a blanket API grant does not confer it. The permission unlocks the tool and nothing else: every request still carries the caller's own API key, so what the account can do through `api_request` is exactly what it can do through the REST API.
+
 ## Status
 
-49 tools across 11 domains (pages, multilingual, media, config, users, GPM, system, dashboard, webhooks, blueprints, plugins) plus `site_info`, 5 resources, and 6 prompts, tracking the API plugin's REST surface. Every tool call dispatches in-process through the API plugin's own router, so its permission scopes, page ACLs, ETag conflict handling, audit trail, and rate limiting all apply unchanged. A connected client only sees the tools its key scopes *and* its account's permissions allow — a limited bot account advertises a correspondingly small tool list. Validated end-to-end on a live deployment as both a claude.ai custom connector and a Claude Code HTTP server.
+50 tools across 12 domains (pages, multilingual, media, config, users, GPM, system, dashboard, webhooks, blueprints, plugins, raw passthrough) plus `site_info`, 5 resources, and 6 prompts, tracking the API plugin's REST surface. Every tool call dispatches in-process through the API plugin's own router, so its permission scopes, page ACLs, ETag conflict handling, audit trail, and rate limiting all apply unchanged. A connected client only sees the tools its key scopes *and* its account's permissions allow — a limited bot account advertises a correspondingly small tool list. Validated end-to-end on a live deployment as both a claude.ai custom connector and a Claude Code HTTP server.
 
 ## Development
 

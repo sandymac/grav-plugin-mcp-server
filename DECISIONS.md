@@ -26,6 +26,37 @@ read its rationale first — most were validated against a live deployment.
    field/widget/panel discovery, the SPA's own translation dictionary), binary downloads,
    and the public auth/login flows. Tool names and schemas may diverge from grav-mcp
    wherever the API warrants it.
+5. **A raw passthrough beside the curated surface** (2026-08-30): `api_request` takes a
+   method, path, query, body, and headers from the caller and dispatches them through
+   `ApiBridge` like any curated tool. No route filtering, no allowlist — the request
+   carries the caller's own API key, so the api plugin's per-route `requirePermission()`
+   is the one and only authorization check, exactly as for a curated tool.
+   - **Unlock-only permission**: `api.mcp-server.raw` decides whether the tool is
+     *visible and invocable*, nothing more. It's checked with
+     `PermissionResolver::resolveExact()`, not `resolve()` — resolve would walk the key
+     up to `api`, so a blanket `access: {api: true}` would silently confer the escape
+     hatch. `api.super` still sees it, via the override that applies to every tool. The
+     permission is registered with Grav's ACL (`permissions.yaml`, via
+     `PermissionsRegisterEvent`) so it's a checkbox on the account's Access tab.
+   - **Reconciles with #4, doesn't reverse it**: the *curated* surface still excludes UI
+     plumbing and binary downloads — that's about which tools we hand-write and maintain.
+     The raw lane deliberately reaches every route, because a route with no curated tool
+     is precisely what it's for. Binary responses are refused at the representation layer
+     (bytes don't belong in an MCP text result), not filtered at dispatch: the request
+     still runs, the result reports status, content type, and size.
+   - **Response envelope**: `{status, content_type, body}` plus `etag` when present, with
+     nothing reshaped — JSON verbatim (no `data` unwrapping, unlike `fromResponse()`),
+     text capped at 128KB with `truncated`/`size` when cut. Upstream RFC 7807 problem
+     documents pass through as the `body` with `isError` set; the friendly error mapping
+     stays the curated lane's job, since a caller reaching for the raw tool wants the
+     real document.
+   - **Header hygiene**: caller headers are forwarded minus a denylist (`x-api-key`,
+     `authorization`, `cookie`, `host`, `content-length`, `content-type`,
+     `transfer-encoding`), and `ApiBridge::request()` stamps `X-API-Key` after merging
+     them, so identity forgery is impossible by construction rather than by filter.
+   - **Exempt from param-map**: the tool's (method, path) tuple arrives at runtime, so
+     there is no static request to cross-reference against the api plugin's route table —
+     the thing param-map exists to check. Its contract is asserted in `smoke.php` instead.
 
 ## Non-decision: the OAuth server stays inside this plugin
 

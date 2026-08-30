@@ -47,7 +47,7 @@ $tools = $server->dispatch(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/li
 $descriptors = $tools['result']['tools'];
 $byName = array_column($descriptors, null, 'name');
 check($descriptors[0]['name'] === 'site_info', 'tools/list returns site_info first');
-check(count($descriptors) === 50, 'tools/list returns all 50 tools, got ' . count($descriptors));
+check(count($descriptors) === 51, 'tools/list returns all 51 tools, got ' . count($descriptors));
 check(
     array_diff(
         [
@@ -78,7 +78,7 @@ check(array_diff(['site_info', 'list_pages', 'get_page', 'list_languages'], $sco
 check(array_intersect(['create_page', 'update_config', 'manage_users', 'clear_cache'], $scopedNames) === [], 'a read-scoped key sees no write tools');
 check(!$scoped->has('create_page'), 'a hidden tool is not callable');
 $scoped->configure(null, []);
-check(count($scoped->list()) === 50, 'an unscoped key sees everything');
+check(count($scoped->list()) === 51, 'an unscoped key sees everything');
 
 // Hidden-vs-unknown: an existing-but-filtered tool names its missing permission.
 $scoped->configure(null, ['api.pages.read']);
@@ -87,7 +87,7 @@ check($scoped->missingPermission('list_pages') === null, 'missingPermission is n
 check($scoped->missingPermission('no_such_tool') === null, 'missingPermission is null for an unknown tool');
 $access = $scoped->toolAccess();
 check(
-    $access['visible'] + $access['hidden'] === 50
+    $access['visible'] + $access['hidden'] === 51
     && in_array('manage_users', $access['hidden_by_missing_permission']['api.users.write'] ?? [], true),
     'toolAccess partitions the surface and groups hidden tools by permission'
 );
@@ -196,6 +196,114 @@ $scopedNames = array_column($scoped->list(), 'name');
 check(in_array('list_pages', $scopedNames, true), 'a pages-read key sees list_pages');
 check(!in_array('update_site_dashboard_layout', $scopedNames, true), 'a pages-read key does not see the super-only site dashboard tool');
 check(!in_array('manage_users', $scopedNames, true), 'a pages-read key does not see user-write tools');
+
+// --- Raw passthrough (api_request) ---
+
+/** Records what the handler dispatches and hands back a canned response. */
+final class StubBridge extends Grav\Plugin\McpServer\ApiBridge
+{
+    /** @var list<array{method: string, path: string, headers: array}> */
+    public array $calls = [];
+
+    public array $next = ['status' => 200, 'headers' => [], 'json' => null, 'body' => ''];
+
+    public function __construct()
+    {
+        // No Grav, no key: nothing is ever dispatched for real.
+    }
+
+    public function request(string $method, string $path, array $query = [], ?array $body = null, array $headers = [], array $files = []): array
+    {
+        $this->calls[] = ['method' => $method, 'path' => $path, 'headers' => $headers];
+
+        return $this->next;
+    }
+}
+
+$raw = Grav\Plugin\McpServer\Tools\RawTools::tools()['api_request'];
+$rawCall = static function (array $args, array $response) use ($raw): array {
+    $bridge = new StubBridge();
+    $bridge->next = $response + ['status' => 200, 'headers' => [], 'json' => null, 'body' => ''];
+    $result = ($raw['handler'])($bridge, $args);
+
+    return ['bridge' => $bridge, 'result' => $result, 'body' => json_decode($result['content'][0]['text'], true)];
+};
+
+check($byName['api_request']['inputSchema']['properties']['method']['enum'] === ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'], 'api_request offers the five methods');
+check($byName['api_request']['inputSchema']['required'] === ['method', 'path'], 'api_request requires method and path');
+check(($permissionMap['api.mcp-server.raw'] ?? []) === ['api_request'], 'api_request is gated on api.mcp-server.raw, and nothing else is');
+
+// Header hygiene: identity/transport headers never reach the api plugin, whatever their case.
+$hygiene = $rawCall(
+    [
+        'method' => 'get',
+        'path' => 'pages',
+        'headers' => [
+            'X-API-Key' => 'grav_evil', 'AUTHORIZATION' => 'Bearer x', 'Cookie' => 'a=b', 'host' => 'evil',
+            'Content-Length' => '1', 'content-type' => 'text/plain', 'Transfer-Encoding' => 'chunked',
+            'If-Match' => 'abc',
+        ],
+    ],
+    ['headers' => ['content-type' => 'application/json'], 'json' => [], 'body' => '[]']
+);
+check(array_keys($hygiene['bridge']->calls[0]['headers']) === ['If-Match'], 'api_request strips every denylisted header, case-insensitively');
+check($hygiene['bridge']->calls[0]['method'] === 'GET' && $hygiene['bridge']->calls[0]['path'] === '/pages', 'api_request normalizes the method and the leading slash');
+
+// JSON responses come back verbatim — no data-unwrapping, no reshaping.
+$json = $rawCall(
+    ['method' => 'GET', 'path' => '/pages/foo'],
+    [
+        'headers' => ['content-type' => 'application/json; charset=utf-8', 'etag' => '"abc123"'],
+        'json' => ['data' => ['title' => 'Foo'], 'meta' => ['x' => 1]],
+        'body' => '{"data":{"title":"Foo"},"meta":{"x":1}}',
+    ]
+);
+check(
+    $json['body'] === ['status' => 200, 'content_type' => 'application/json', 'etag' => 'abc123', 'body' => ['data' => ['title' => 'Foo'], 'meta' => ['x' => 1]]],
+    'api_request returns the JSON body verbatim with an unquoted etag'
+);
+check($json['result']['isError'] === false, 'a 2xx passthrough is not an error');
+check(
+    !array_key_exists('etag', $rawCall(['method' => 'GET', 'path' => '/pages'], ['headers' => ['content-type' => 'application/json'], 'json' => [], 'body' => '[]'])['body']),
+    'etag is omitted when the response carries none'
+);
+
+// Binary never crosses the wire.
+$binary = $rawCall(
+    ['method' => 'GET', 'path' => '/media/logo.png'],
+    ['headers' => ['content-type' => 'image/png'], 'body' => str_repeat("\x89", 2048)]
+);
+check($binary['result']['isError'] === true, 'a binary response is a tool error');
+check(
+    $binary['body'] === ['status' => 200, 'content_type' => 'image/png', 'size' => 2048, 'error' => 'binary response not transported over MCP'],
+    'a binary response reports its size instead of its bytes'
+);
+
+// Text is capped, and says so.
+$text = $rawCall(['method' => 'GET', 'path' => '/audit/export'], ['headers' => ['content-type' => 'text/csv'], 'body' => str_repeat('x', 200000)]);
+check(strlen($text['body']['body']) === 131072, 'a long text body is cut to the 128KB cap');
+check($text['body']['truncated'] === true && $text['body']['size'] === 200000, 'a truncated body reports the original size');
+check($rawCall(['method' => 'GET', 'path' => '/x'], ['headers' => ['content-type' => 'text/plain'], 'body' => 'short'])['body']['body'] === 'short', 'a short text body is returned whole');
+
+// Containment: a traversal path is refused before anything is dispatched.
+$escape = $rawCall(['method' => 'GET', 'path' => '/../../admin'], []);
+check($escape['result']['isError'] === true && $escape['bridge']->calls === [], 'a ".." path is rejected without dispatching');
+check($rawCall(['method' => 'DELETE', 'path' => '/pages/..'], [])['bridge']->calls === [], 'a trailing ".." segment is rejected too');
+check(
+    $rawCall(['method' => 'GET', 'path' => '/pages/a..b'], ['headers' => ['content-type' => 'application/json'], 'body' => '[]'])['bridge']->calls !== [],
+    'dots inside a segment are not traversal'
+);
+
+check($rawCall(['method' => 'TRACE', 'path' => '/pages'], [])['result']['isError'] === true, 'a method outside the enum is refused');
+
+// RFC 7807 problem documents pass through untouched, flagged as an error.
+$problem = ['type' => 'https://example.com/probs/forbidden', 'title' => 'Forbidden', 'status' => 403, 'detail' => 'Missing permission api.pages.write'];
+$rfc = $rawCall(
+    ['method' => 'POST', 'path' => '/pages'],
+    ['status' => 403, 'headers' => ['content-type' => 'application/problem+json'], 'json' => $problem, 'body' => (string) json_encode($problem)]
+);
+check($rfc['result']['isError'] === true, 'an upstream 4xx is flagged isError');
+check($rfc['body'] === ['status' => 403, 'content_type' => 'application/problem+json', 'body' => $problem], 'the problem document passes through verbatim');
 
 // --- OAuth store: lockout + revocation mechanics (phase 5) ---
 

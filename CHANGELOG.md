@@ -1,3 +1,10 @@
+# Unreleased
+## 2026-08-30
+
+1. [](#new)
+    * New `api_request` tool: a raw passthrough to any grav-plugin-api REST route, for the routes no curated tool wraps. Takes a method, path, query, body, and headers, and returns `{status, content_type, body}` — JSON verbatim, text capped at 128KB, binary refused with its size instead of its bytes, and upstream RFC 7807 problem documents passed through untouched. It grants nothing: every request carries the caller's own API key, so the API plugin's per-route permission checks apply exactly as they do to a curated tool.
+    * New unlock-only permission `api.mcp-server.raw`, registered with Grav's ACL so it appears as a checkbox on the account's Access tab. It only controls whether `api_request` is visible and callable, and must be granted explicitly — a blanket `api` grant does not confer it.
+
 # v1.0.3
 ## 2026-08-20
 

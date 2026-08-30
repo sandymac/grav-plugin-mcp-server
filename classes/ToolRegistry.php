@@ -25,6 +25,7 @@ class ToolRegistry
         Tools\WebhooksTools::class,
         Tools\BlueprintsTools::class,
         Tools\PluginsTools::class,
+        Tools\RawTools::class,
     ];
 
     private ?string $apiKey = null;
@@ -126,9 +127,15 @@ class ToolRegistry
 
         $resolver = $this->resolver ??= new \Grav\Plugin\Api\PermissionResolver();
 
+        // api.mcp-server.raw unlocks the raw passthrough, so it has to be granted
+        // deliberately: resolveExact, or resolve() would walk it up to `api` and a
+        // blanket `access: {api: true}` would confer it.
+        $held = $permission === 'api.mcp-server.raw'
+            ? $resolver->resolveExact($this->user, $permission)
+            : $resolver->resolve($this->user, $permission);
+
         // api.super is authority everywhere in the api plugin; honour it here too.
-        return $resolver->resolve($this->user, $permission) === true
-            || $resolver->resolveExact($this->user, 'api.super') === true;
+        return $held === true || $resolver->resolveExact($this->user, 'api.super') === true;
     }
 
     /**

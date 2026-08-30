@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Grav\Plugin;
 
 use Grav\Common\Plugin;
+use Grav\Events\PermissionsRegisterEvent;
+use Grav\Framework\Acl\PermissionsReader;
 use Grav\Plugin\McpServer\McpServer;
 use Grav\Plugin\McpServer\OAuth\OAuthServer;
 
@@ -102,12 +104,26 @@ class McpServerPlugin extends Plugin
     }
     public static function getSubscribedEvents(): array
     {
-        return [
+        $events = [
             'onPluginsInitialized' => [
                 ['autoload', 100000],
                 ['onPluginsInitialized', 1000],
             ],
         ];
+
+        // Guarded: cores without the ACL event simply never register the
+        // permission (the tool then stays hidden, which is the safe default).
+        if (class_exists(PermissionsRegisterEvent::class)) {
+            $events[PermissionsRegisterEvent::class] = ['onRegisterPermissions', 0];
+        }
+
+        return $events;
+    }
+
+    /** Put api.mcp-server.raw on the admin Access tab as a checkbox. */
+    public function onRegisterPermissions(PermissionsRegisterEvent $event): void
+    {
+        $event->permissions->addActions(PermissionsReader::fromYaml("plugin://{$this->name}/permissions.yaml"));
     }
 
     public function autoload(): void

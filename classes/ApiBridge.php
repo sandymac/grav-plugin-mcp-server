@@ -61,7 +61,7 @@ class ApiBridge
      * @param array<string, mixed>|null $body JSON body
      * @param array<string, string> $headers extra headers (If-Match, X-Config-Environment, ...)
      * @param array<string, mixed> $files PSR-7 UploadedFileInterface[] for multipart uploads
-     * @return array{status:int, headers:array<string,string>, json:mixed}
+     * @return array{status:int, headers:array<string,string>, json:mixed, body:string}
      */
     public function request(string $method, string $path, array $query = [], ?array $body = null, array $headers = [], array $files = []): array
     {
@@ -115,6 +115,9 @@ class ApiBridge
         if ($files !== []) {
             $request = $request->withUploadedFiles($files);
         }
+        // Last, deliberately: api_request forwards caller-supplied headers, and
+        // stamping the key after them makes an override impossible rather than
+        // merely denylisted.
         if ($this->apiKey !== null) {
             $request = $request->withHeader('X-API-Key', $this->apiKey);
         }
@@ -131,19 +134,24 @@ class ApiBridge
             $responseHeaders[strtolower((string) $name)] = $response->getHeaderLine((string) $name);
         }
 
+        // Raw body too: api_request needs the bytes and the content type, not
+        // just the JSON reading the curated tools take.
+        $raw = (string) $response->getBody();
+
         return [
             'status' => $response->getStatusCode(),
             'headers' => $responseHeaders,
-            'json' => json_decode((string) $response->getBody(), true),
+            'json' => json_decode($raw, true),
+            'body' => $raw,
         ];
     }
 
-    /** Success CallToolResult: compact JSON text block (whitespace is tokens). */
-    public static function toolJson(mixed $data): array
+    /** CallToolResult: compact JSON text block (whitespace is tokens). */
+    public static function toolJson(mixed $data, bool $isError = false): array
     {
         return [
             'content' => [['type' => 'text', 'text' => json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]],
-            'isError' => false,
+            'isError' => $isError,
         ];
     }
 
@@ -159,7 +167,7 @@ class ApiBridge
     /**
      * Envelope → CallToolResult.
      *
-     * @param array{status:int, headers:array<string,string>, json:mixed} $resp
+     * @param array{status:int, headers:array<string,string>, json:mixed, body?:string} $resp
      * @param callable(mixed, mixed): mixed|null $transform
      * @param ?string $successMessage on any 2xx, reply {success, message} and ignore the body
      */

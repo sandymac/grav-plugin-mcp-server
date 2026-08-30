@@ -1,0 +1,13 @@
+actions:
+  api.mcp-server:
+    type: access
+    label: MCP Server
+    actions:
+      raw:
+        label: Raw API passthrough
+        help: >-
+          Unlocks the api_request tool, which dispatches any REST route of the API
+          plugin. It grants no authority of its own — every request still goes
+          through that plugin's own permission checks — but it exposes every route
+          the account's other permissions already allow, including ones no curated
+          tool wraps.
