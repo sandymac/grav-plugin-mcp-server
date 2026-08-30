@@ -47,7 +47,7 @@ $tools = $server->dispatch(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/li
 $descriptors = $tools['result']['tools'];
 $byName = array_column($descriptors, null, 'name');
 check($descriptors[0]['name'] === 'site_info', 'tools/list returns site_info first');
-check(count($descriptors) === 51, 'tools/list returns all 51 tools, got ' . count($descriptors));
+check(count($descriptors) === 52, 'tools/list returns all 52 tools, got ' . count($descriptors));
 check(
     array_diff(
         [
@@ -78,7 +78,7 @@ check(array_diff(['site_info', 'list_pages', 'get_page', 'list_languages'], $sco
 check(array_intersect(['create_page', 'update_config', 'manage_users', 'clear_cache'], $scopedNames) === [], 'a read-scoped key sees no write tools');
 check(!$scoped->has('create_page'), 'a hidden tool is not callable');
 $scoped->configure(null, []);
-check(count($scoped->list()) === 51, 'an unscoped key sees everything');
+check(count($scoped->list()) === 52, 'an unscoped key sees everything');
 
 // Hidden-vs-unknown: an existing-but-filtered tool names its missing permission.
 $scoped->configure(null, ['api.pages.read']);
@@ -87,7 +87,7 @@ check($scoped->missingPermission('list_pages') === null, 'missingPermission is n
 check($scoped->missingPermission('no_such_tool') === null, 'missingPermission is null for an unknown tool');
 $access = $scoped->toolAccess();
 check(
-    $access['visible'] + $access['hidden'] === 51
+    $access['visible'] + $access['hidden'] === 52
     && in_array('manage_users', $access['hidden_by_missing_permission']['api.users.write'] ?? [], true),
     'toolAccess partitions the surface and groups hidden tools by permission'
 );
@@ -245,7 +245,7 @@ $rawCall = static function (array $args, array $response, array $routeTable = []
 
 check($byName['api_request']['inputSchema']['properties']['method']['enum'] === ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'], 'api_request offers the five methods');
 check($byName['api_request']['inputSchema']['required'] === ['method', 'path'], 'api_request requires method and path');
-check(($permissionMap['api.mcp-server.raw'] ?? []) === ['api_request'], 'api_request is gated on api.mcp-server.raw, and nothing else is');
+check(($permissionMap['api.mcp-server.raw'] ?? []) === ['api_request', 'list_api_routes'], 'the raw-passthrough pair is gated on api.mcp-server.raw, and nothing else is');
 
 // Header hygiene: identity/transport headers never reach the api plugin, whatever their case.
 $hygiene = $rawCall(
@@ -356,6 +356,43 @@ check(
     !array_key_exists('suggestions', $rawCall(['method' => 'GET', 'path' => '/nothing/alike'], $miss('GET', '/nothing/alike'), $routeTable)['body']),
     'a path sharing no segment gets no suggestions rather than noise'
 );
+
+// --- Route introspection (list_api_routes) ---
+
+$list = Grav\Plugin\McpServer\Tools\RawTools::tools()['list_api_routes'];
+$listCall = static function (array $args) use ($list, $routeTable): array {
+    $bridge = new StubBridge();
+    $bridge->routeTable = $routeTable;
+
+    return (array) json_decode(($list['handler'])($bridge, $args)['content'][0]['text'], true);
+};
+/** @return list<string> */
+$labels = static fn(array $result): array => array_map(
+    static fn(array $row): string => $row['method'] . ' ' . $row['path'],
+    $result['routes']
+);
+
+check($byName['list_api_routes']['inputSchema']['properties']['method']['enum'] === ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'], 'list_api_routes offers the five methods');
+check(($byName['list_api_routes']['inputSchema']['required'] ?? []) === [], 'every list_api_routes filter is optional');
+check($byName['list_api_routes']['annotations']['readOnlyHint'] === true, 'list_api_routes is annotated read-only');
+
+$all = $listCall([]);
+check($all['api_root'] === '/api/v1', 'the listing reports the configured API root');
+check(
+    $labels($all) === ['GET /media/{route:.+}', 'GET /pages', 'POST /pages', 'GET /pages/{route:.+}', 'GET /system/info'],
+    'routes are sorted by path then method'
+);
+check($all['total_matched'] === 5 && str_contains($all['hint'], 'api_request'), 'the listing counts matches and points at api_request');
+
+check($labels($listCall(['method' => 'POST'])) === ['POST /pages'], 'method filters the listing');
+check($labels($listCall(['prefix' => 'pages'])) === ['GET /pages', 'POST /pages', 'GET /pages/{route:.+}'], 'prefix matches with or without a leading slash');
+check($labels($listCall(['search' => 'get /PAGES'])) === ['GET /pages', 'GET /pages/{route:.+}'], 'search is a case-insensitive substring of "METHOD /path"');
+check($labels($listCall(['method' => 'GET', 'prefix' => '/pages'])) === ['GET /pages', 'GET /pages/{route:.+}'], 'filters are conjunctive');
+check($labels($listCall(['search' => 'nothing-alike'])) === [] && $listCall(['search' => 'nothing-alike'])['total_matched'] === 0, 'a filter matching nothing returns an empty listing');
+
+$capped = $listCall(['limit' => 2]);
+check(count($capped['routes']) === 2 && $capped['total_matched'] === 5, 'limit caps the page but total_matched counts every match');
+check(count($listCall(['limit' => 9999])['routes']) === 5, 'an over-large limit is clamped, not fatal');
 
 // --- OAuth store: lockout + revocation mechanics (phase 5) ---
 

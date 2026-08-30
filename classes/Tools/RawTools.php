@@ -59,7 +59,63 @@ final class RawTools
                 ],
                 'handler' => static fn(ApiBridge $api, array $args): array => self::dispatch($api, $args),
             ],
+            'list_api_routes' => [
+                'permission' => 'api.mcp-server.raw',
+                'descriptor' => [
+                    'name' => 'list_api_routes',
+                    'title' => 'List API Routes',
+                    'description' => 'Lists the live grav-plugin-api REST route table — every route api_request can call, core routes plus whatever other plugins registered on this site. Filter with search (case-insensitive substring of "METHOD /path"), method, and prefix; limit defaults to 50. Returns {api_root, routes, total_matched}; each row is {method, path} and may carry detail recovered from the controller source (permission, query, body). [Requires: api.mcp-server.raw]',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'search' => ['type' => 'string', 'description' => 'Case-insensitive substring match against "METHOD /path"'],
+                            'method' => ['type' => 'string', 'enum' => self::METHODS, 'description' => 'Only routes with this HTTP method'],
+                            'prefix' => ['type' => 'string', 'description' => 'Only routes whose path starts with this prefix, e.g. /pages'],
+                            'limit' => ['type' => 'integer', 'description' => 'Maximum rows returned (default 50, max 200)'],
+                        ],
+                        'additionalProperties' => false,
+                    ],
+                    'annotations' => ['readOnlyHint' => true],
+                ],
+                'handler' => static fn(ApiBridge $api, array $args): array => self::listRoutes($api, $args),
+            ],
         ];
+    }
+
+    /** The live route table, filtered and paged. Filters are conjunctive. */
+    private static function listRoutes(ApiBridge $api, array $args): array
+    {
+        $search = strtolower(trim((string) ($args['search'] ?? '')));
+        $method = strtoupper(trim((string) ($args['method'] ?? '')));
+        $prefix = (string) ($args['prefix'] ?? '');
+        $prefix = $prefix === '' ? '' : '/' . ltrim($prefix, '/');
+        $limit = max(1, min(200, (int) ($args['limit'] ?? 50)));
+
+        $matched = [];
+        foreach ($api->routes() as $route) {
+            if ($method !== '' && $route['method'] !== $method) {
+                continue;
+            }
+            if ($prefix !== '' && !str_starts_with($route['path'], $prefix)) {
+                continue;
+            }
+            if ($search !== '' && !str_contains(strtolower($route['method'] . ' ' . $route['path']), $search)) {
+                continue;
+            }
+            $matched[] = $route;
+        }
+
+        usort($matched, static fn(array $a, array $b): int => [$a['path'], $a['method']] <=> [$b['path'], $b['method']]);
+
+        return ApiBridge::toolJson([
+            'api_root' => $api->apiRoot(),
+            'routes' => array_map(
+                static fn(array $route): array => ['method' => $route['method'], 'path' => $route['path']],
+                array_slice($matched, 0, $limit)
+            ),
+            'total_matched' => count($matched),
+            'hint' => 'Every row is callable with api_request: pass its method and path (paths are relative to api_root).',
+        ]);
     }
 
     private static function dispatch(ApiBridge $api, array $args): array

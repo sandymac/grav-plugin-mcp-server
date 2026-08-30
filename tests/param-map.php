@@ -677,10 +677,11 @@ $tools = (new ReflectionMethod(Grav\Plugin\McpServer\ToolRegistry::class, 'all')
     ->invoke(new Grav\Plugin\McpServer\ToolRegistry(null));
 
 foreach ($tools as $name => $tool) {
-    // The raw passthrough takes its (method, path) tuple from the caller at
-    // runtime, so there is no static request here to match against a route,
-    // its parameters, or its permission. Contract-checked in smoke.php instead.
-    if ($name === 'api_request') {
+    // The raw-passthrough pair issues no static request to cross-reference:
+    // api_request takes its (method, path) tuple from the caller at runtime,
+    // and list_api_routes reads the route table instead of dispatching.
+    // Contract-checked in smoke.php instead.
+    if ($name === 'api_request' || $name === 'list_api_routes') {
         continue;
     }
 
