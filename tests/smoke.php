@@ -207,9 +207,22 @@ final class StubBridge extends Grav\Plugin\McpServer\ApiBridge
 
     public array $next = ['status' => 200, 'headers' => [], 'json' => null, 'body' => ''];
 
+    /** @var list<array{method: string, path: string, handler: array}> */
+    public array $routeTable = [];
+
     public function __construct()
     {
         // No Grav, no key: nothing is ever dispatched for real.
+    }
+
+    public function apiRoot(): string
+    {
+        return '/api/v1';
+    }
+
+    public function routes(): array
+    {
+        return $this->routeTable;
     }
 
     public function request(string $method, string $path, array $query = [], ?array $body = null, array $headers = [], array $files = []): array
@@ -221,9 +234,10 @@ final class StubBridge extends Grav\Plugin\McpServer\ApiBridge
 }
 
 $raw = Grav\Plugin\McpServer\Tools\RawTools::tools()['api_request'];
-$rawCall = static function (array $args, array $response) use ($raw): array {
+$rawCall = static function (array $args, array $response, array $routeTable = []) use ($raw): array {
     $bridge = new StubBridge();
     $bridge->next = $response + ['status' => 200, 'headers' => [], 'json' => null, 'body' => ''];
+    $bridge->routeTable = $routeTable;
     $result = ($raw['handler'])($bridge, $args);
 
     return ['bridge' => $bridge, 'result' => $result, 'body' => json_decode($result['content'][0]['text'], true)];
@@ -304,6 +318,44 @@ $rfc = $rawCall(
 );
 check($rfc['result']['isError'] === true, 'an upstream 4xx is flagged isError');
 check($rfc['body'] === ['status' => 403, 'content_type' => 'application/problem+json', 'body' => $problem], 'the problem document passes through verbatim');
+
+// Nearest-route suggestions on a routing miss (declaration order breaks ties).
+$routeTable = [
+    ['method' => 'GET', 'path' => '/pages', 'handler' => ['C', 'index']],
+    ['method' => 'POST', 'path' => '/pages', 'handler' => ['C', 'create']],
+    ['method' => 'GET', 'path' => '/pages/{route:.+}', 'handler' => ['C', 'show']],
+    ['method' => 'GET', 'path' => '/media/{route:.+}', 'handler' => ['C', 'media']],
+    ['method' => 'GET', 'path' => '/system/info', 'handler' => ['C', 'info']],
+];
+$miss = static fn(string $method, string $path): array => [
+    'status' => 404,
+    'headers' => ['content-type' => 'application/problem+json'],
+    'json' => ['title' => 'Not Found', 'status' => 404, 'detail' => "No route matches '{$method} {$path}'."],
+    'body' => '{}',
+];
+
+$noRoute = $rawCall(['method' => 'GET', 'path' => '/pages/foo/children'], $miss('GET', '/pages/foo/children'), $routeTable);
+check(
+    ($noRoute['body']['suggestions'] ?? null) === ['GET /pages', 'GET /pages/{route:.+}', 'POST /pages'],
+    'a routing miss suggests the segment-sharing routes, same-method first, unrelated routes dropped'
+);
+check($noRoute['result']['isError'] === true, 'a routing miss is still an error');
+check(
+    !array_key_exists('suggestions', $rawCall(['method' => 'GET', 'path' => '/pages'], ['headers' => ['content-type' => 'application/json'], 'json' => [], 'body' => '[]'], $routeTable)['body']),
+    'a successful passthrough carries no suggestions'
+);
+check(
+    !array_key_exists('suggestions', $rawCall(
+        ['method' => 'GET', 'path' => '/pages/gone'],
+        ['status' => 404, 'headers' => ['content-type' => 'application/problem+json'], 'json' => ['detail' => 'Page not found.'], 'body' => '{}'],
+        $routeTable
+    )['body']),
+    'a controller 404 (route matched, resource missing) carries no suggestions'
+);
+check(
+    !array_key_exists('suggestions', $rawCall(['method' => 'GET', 'path' => '/nothing/alike'], $miss('GET', '/nothing/alike'), $routeTable)['body']),
+    'a path sharing no segment gets no suggestions rather than noise'
+);
 
 // --- OAuth store: lockout + revocation mechanics (phase 5) ---
 

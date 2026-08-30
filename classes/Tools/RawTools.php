@@ -42,7 +42,7 @@ final class RawTools
                 'descriptor' => [
                     'name' => 'api_request',
                     'title' => 'Raw API Request',
-                    'description' => 'Escape hatch for grav-plugin-api REST routes that have no curated tool. Paths are routes relative to the API root (e.g. "/pages", "/audit/export"), not full URLs. Returns {status, content_type, body} (plus etag when the response carries one); errors come back as the upstream RFC 7807 problem document verbatim. Prefer a curated tool when one exists. [Requires: api.mcp-server.raw]',
+                    'description' => 'Escape hatch for grav-plugin-api REST routes that have no curated tool. Paths are routes relative to the API root (e.g. "/pages", "/audit/export"), not full URLs. Returns {status, content_type, body} (plus etag when the response carries one); errors come back as the upstream RFC 7807 problem document verbatim, and a 404 that matched no route also carries `suggestions`: the nearest routes in the live table. Prefer a curated tool when one exists. [Requires: api.mcp-server.raw]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -84,7 +84,51 @@ final class RawTools
             self::headers($args['headers'] ?? [])
         );
 
-        return self::envelope($resp);
+        // Enumerating the route table costs a router build, so only a genuine
+        // routing miss pays for it — not a 404 from a controller.
+        $missed = $resp['status'] === 404
+            && is_array($resp['json'])
+            && str_contains((string) ($resp['json']['detail'] ?? ''), 'No route matches');
+
+        return self::envelope($resp, $missed ? self::suggest($api, $method, $path) : []);
+    }
+
+    /**
+     * Nearest live routes to a path that matched nothing: most shared path
+     * segments first, same-method ahead of a method mismatch at equal overlap.
+     *
+     * @return list<string> "METHOD /path"
+     */
+    private static function suggest(ApiBridge $api, string $method, string $path): array
+    {
+        try {
+            $routes = $api->routes();
+        } catch (\Throwable) {
+            return []; // a hint is never worth failing the call over
+        }
+
+        $wanted = self::segments($path);
+        $scored = [];
+        foreach ($routes as $route) {
+            $shared = count(array_intersect($wanted, self::segments($route['path'])));
+            if ($shared > 0) {
+                $scored[] = [
+                    'shared' => $shared,
+                    'same' => (int) ($route['method'] === $method),
+                    'label' => $route['method'] . ' ' . $route['path'],
+                ];
+            }
+        }
+        // Stable sort (PHP 8), so equal scores keep declaration order.
+        usort($scored, static fn(array $a, array $b): int => [$b['shared'], $b['same']] <=> [$a['shared'], $a['same']]);
+
+        return array_slice(array_column($scored, 'label'), 0, 5);
+    }
+
+    /** @return list<string> non-empty path segments, placeholders included verbatim */
+    private static function segments(string $path): array
+    {
+        return array_values(array_filter(explode('/', $path), static fn(string $s): bool => $s !== ''));
     }
 
     /** @return array<string, string> caller headers minus the denylist (case-insensitive). */
@@ -105,8 +149,9 @@ final class RawTools
      * (problem documents included), text capped, binary refused.
      *
      * @param array{status:int, headers:array<string,string>, json:mixed, body?:string} $resp
+     * @param list<string> $suggestions nearest routes, on a routing miss only
      */
-    public static function envelope(array $resp): array
+    public static function envelope(array $resp, array $suggestions = []): array
     {
         $type = strtolower(trim(explode(';', $resp['headers']['content-type'] ?? '')[0]));
         $raw = (string) ($resp['body'] ?? '');
@@ -115,6 +160,9 @@ final class RawTools
         $etag = trim($resp['headers']['etag'] ?? '', '"');
         if ($etag !== '') {
             $result['etag'] = $etag;
+        }
+        if ($suggestions !== []) {
+            $result['suggestions'] = $suggestions;
         }
 
         $isText = str_starts_with($type, 'text/')

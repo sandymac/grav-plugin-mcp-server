@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Grav\Plugin\McpServer;
 
+use FastRoute\DataGenerator\GroupCountBased;
+use FastRoute\RouteCollector;
+use FastRoute\RouteParser\Std;
 use Grav\Common\Grav;
 use Grav\Plugin\Api\ApiRouter;
 use Nyholm\Psr7\ServerRequest;
@@ -56,6 +59,61 @@ class ApiBridge
         return preg_match('/^version:\s*(\S+)/m', (string) file_get_contents($file), $m) === 1 ? $m[1] : null;
     }
 
+    /** The API base every route path hangs off, e.g. "/api/v1". */
+    public function apiRoot(): string
+    {
+        $config = $this->grav === null ? null : $this->grav['config'];
+
+        return '/' . trim((string) ($config?->get('plugins.api.route') ?? '/api'), '/')
+            . '/' . ($config?->get('plugins.api.version_prefix') ?? 'v1');
+    }
+
+    /**
+     * The live route table the api plugin's router would serve right now: core
+     * routes plus everything third-party plugins registered.
+     *
+     * Recorded, not compiled — a RouteCollector subclass whose addRoute()
+     * captures instead of generating dispatch data. Every alias (get/post/…),
+     * addGroup(), and the ApiRouteCollector forwarder plugins are handed all
+     * funnel through addRoute(), so nothing escapes the override.
+     *
+     * registerPluginRoutes() fires the real onApiRegisterRoutes event, which is
+     * why this needs the live container rather than a source scan.
+     *
+     * Overridable: Grav-less tests stub it the way they stub request().
+     *
+     * @return list<array{method: string, path: string, handler: array}>
+     */
+    public function routes(): array
+    {
+        if ($this->grav === null) {
+            throw new \RuntimeException('ApiBridge cannot enumerate routes without Grav.');
+        }
+
+        $collector = new class(new Std(), new GroupCountBased()) extends RouteCollector {
+            /** @var list<array{method: string, path: string, handler: array}> */
+            public array $recorded = [];
+
+            public function addRoute(mixed $httpMethod, mixed $route, mixed $handler): void
+            {
+                foreach ((array) $httpMethod as $method) {
+                    $this->recorded[] = [
+                        'method' => strtoupper((string) $method),
+                        'path' => $this->currentGroupPrefix . (string) $route,
+                        'handler' => (array) $handler,
+                    ];
+                }
+            }
+        };
+
+        $router = new ApiRouter($this->grav, $this->grav['config']);
+        foreach (['registerCoreRoutes', 'registerPluginRoutes'] as $register) {
+            (new \ReflectionMethod($router, $register))->invoke($router, $collector);
+        }
+
+        return $collector->recorded;
+    }
+
     /**
      * @param array<string, mixed> $query scalars; bools become 'true'/'false', null/'' dropped
      * @param array<string, mixed>|null $body JSON body
@@ -70,8 +128,7 @@ class ApiBridge
         }
 
         $config = $this->grav['config'];
-        $apiBase = '/' . trim((string) $config->get('plugins.api.route', '/api'), '/')
-            . '/' . $config->get('plugins.api.version_prefix', 'v1');
+        $apiBase = $this->apiRoot();
 
         $params = [];
         foreach ($query as $name => $value) {
