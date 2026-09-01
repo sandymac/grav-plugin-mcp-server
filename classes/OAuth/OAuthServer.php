@@ -407,6 +407,17 @@ class OAuthServer
             $this->redirectBack($params, ['error' => 'invalid_scope']);
         }
 
+        // A request that limits nothing mints an UNSCOPED key: empty scopes is
+        // the only cap that still covers tools published by plugins installed
+        // later (their permissions are outside our advertised api.* vocabulary,
+        // so an explicit list can never reach them). This also normalizes the
+        // wildcard away — '*' never reaches a key. The checkbox is the user's
+        // opt-out, freezing the grant at today's vocabulary; unsigned like the
+        // password and the deny button, and forging it can only narrow.
+        if ($granted === [] || self::coversAllSupported($granted)) {
+            $granted = isset($_POST['limit_scopes']) ? self::supportedScopes() : [];
+        }
+
         // The code is bound to the resolved account, not to whatever was typed.
         $username = (string) $user->get('username');
 
@@ -661,18 +672,26 @@ class OAuthServer
         // instead of dressed up as a 20-item "limitation".
         $scopes = self::filterScopes($params['scope']);
         $li = static fn(string $s): string => '<li><code>' . $e($s) . '</code></li>';
+        $limitOption = '';
         if ($scopes === [] || self::coversAllSupported($scopes)) {
             $grants = '<p>Approving grants <strong>full account access</strong> — '
                 . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
-                . '</p>';
+                . ' The connection can do anything this account can, <strong>including tools that plugins add later</strong>.</p>';
             // The expansion is the advertised vocabulary, collapsed by default:
             // the point of this branch is that the list is not a limitation,
-            // so it's there for the curious, not in everyone's way.
+            // so it's there for the curious, not in everyone's way. Titled as a
+            // snapshot, because the grant is not limited to it.
             $supported = self::supportedScopes();
             if ($supported !== []) {
-                $grants .= '<details><summary>What full access covers</summary><ul>'
+                $grants .= '<details><summary>What that currently includes</summary><ul>'
                     . implode('', array_map($li, $supported))
                     . '</ul></details>';
+                // Opt-out, so the default keeps working as tools appear. Lives in
+                // the form; its state survives a failed-login re-render, or a
+                // mistyped password would silently widen the grant.
+                $limitOption = '<label class="limit"><input type="checkbox" name="limit_scopes" value="1"'
+                    . (isset($_POST['limit_scopes']) ? ' checked' : '')
+                    . '> Limit this connection to only the permissions listed above (tools added by future plugin updates will be excluded)</label>';
             }
         } else {
             $grants = '<p>Approving grants access limited to:</p><ul>'
@@ -699,6 +718,7 @@ class OAuthServer
               <label>Username <input type="text" name="username" required autofocus></label>
               <label>Password <input type="password" name="password" required></label>
               <label>Two-factor code <input type="text" name="twofa" inputmode="numeric" autocomplete="one-time-code" placeholder="if enabled on your account"></label>
+              {$limitOption}
               <div class="buttons">
                 <button type="submit">Approve</button>
                 <button type="submit" name="deny" value="1" class="deny">Deny</button>
@@ -753,6 +773,7 @@ class OAuthServer
               details{margin:.75rem 0}
               summary{cursor:pointer;color:#555;font-size:.9rem}
               label{display:block;margin:.75rem 0}
+              .limit{color:#555;font-size:.9rem}
               input[type=text],input[type=password]{width:100%;padding:.5rem;box-sizing:border-box}
               .buttons{margin-top:1rem;display:flex;gap:.5rem}
               button{padding:.5rem 1.25rem;cursor:pointer}
