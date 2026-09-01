@@ -235,6 +235,7 @@ class ToolRegistry
                         'title' => $this->grav?->offsetGet('config')?->get('site.title'),
                         'grav_version' => \defined('GRAV_VERSION') ? \GRAV_VERSION : null,
                         'mcp_plugin_version' => McpServer::VERSION,
+                        'mcp_plugin_build' => McpServer::build(),
                         'api_plugin_version' => $this->grav !== null ? ApiBridge::apiPluginVersion($this->grav) : null,
                     ]),
                     'descriptor' => [

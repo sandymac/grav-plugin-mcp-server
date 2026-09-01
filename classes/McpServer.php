@@ -20,6 +20,18 @@ class McpServer
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
     public const string VERSION = '1.1.0';
 
+    /**
+     * The commit a release zip was built from — git archive substitutes it
+     * (export-subst in .gitattributes); a git checkout keeps the placeholder.
+     */
+    private const string BUILD = '$Format:%h$';
+
+    /** Short commit hash of the release build, or null on a git checkout. */
+    public static function build(): ?string
+    {
+        return str_starts_with(self::BUILD, '$') ? null : self::BUILD;
+    }
+
     /** Matches the api dependency floor in blueprints.yaml — smoke asserts they agree. */
     public const string MIN_API_VERSION = '1.0.22';
     public const array SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'];
