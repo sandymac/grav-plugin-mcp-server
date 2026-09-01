@@ -86,6 +86,7 @@ require __DIR__ . '/../classes/ApiBridge.php';
 foreach (glob(__DIR__ . '/../classes/Tools/*.php') as $domainFile) {
     require $domainFile;
 }
+require __DIR__ . '/../classes/PluginTools.php';
 require __DIR__ . '/../classes/ToolRegistry.php';
 require __DIR__ . '/../classes/McpServer.php'; // site_info's handler reads McpServer::VERSION
 
