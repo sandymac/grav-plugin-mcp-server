@@ -7,3 +7,4 @@ CLAUDE.md export-ignore
 DECISIONS.md export-ignore
 phpstan.neon export-ignore
 tests export-ignore
+classes/McpServer.php export-subst
