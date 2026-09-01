@@ -50,6 +50,17 @@ read its rationale first — most were validated against a live deployment.
    resolves at consent time into the stored scopes; nothing else is stored. Existing
    keys are **never silently promoted** — refresh rotation preserves scopes, and an old
    connector broadens only by re-consenting through the screen that explains it.
+7. **Consent-time narrowing is per-scope checkboxes, nothing fancier** (2026-09-01,
+   issue #1): every scope the screen offers (the advertised vocabulary for a
+   limit-nothing request, the requested list otherwise) is a ticked checkbox; the grant
+   is `offered ∩ ticked`, so the unsigned checkboxes — like the deny button — can only
+   narrow. Unticking anything on a limit-nothing request makes the grant an explicit cap
+   (same effect as the freeze box); nothing ticked re-renders with an error rather than
+   minting (an empty list would be *unscoped*) or denying (a stray click shouldn't end
+   the connection). Skipped: presets ("read only"), grouping by domain, post-grant
+   editing — the flat list is the api plugin's own vocabulary, and key management is its
+   job (`bin/plugin api keys:*`). The RFC 6749 §3.3 caveat stands: a client that ignores
+   the echoed narrower `scope` discovers the cap as tool-list gaps and permission errors.
 
 ## Non-decision: the OAuth server stays inside this plugin
 
@@ -78,11 +89,11 @@ can't sign in on our consent form; if that ever matters, session-based consent i
 - **Audit logging** — covered by the api plugin: every tool call dispatches through
   `ApiRouter`, and `ApiBridge` forwards the real `$_SERVER` params and the caller's
   `User-Agent`, so `AuditContext` records the same IP and agent a direct REST call gets.
-- **Consent-time scope adjustment** — the consent screen displays the granted scopes
-  (or "full account access") but the human approves or denies as a whole; scopes are a
-  ceiling over live account permissions, so consent-time narrowing is UX, not a security
-  boundary, and the bot-account pattern already covers human-managed narrowing.
-  Checkbox-style downscoping is explored in issue #1.
+- **Consent-time scope presets and post-grant scope editing** — the consent screen
+  narrows per scope (Architecture #7); presets would need a vocabulary of our own, and
+  editing a live key's scopes is the api plugin's key management, not ours. Scopes are a
+  ceiling over live account permissions, so the bot-account pattern still covers
+  human-managed narrowing over time.
 - **Consent-time permission validation of requested scopes** — deliberately none: a
   scope the account doesn't hold grants nothing (effective access = account permissions
   ∩ key scopes, resolved live per request), and the account's permissions can change

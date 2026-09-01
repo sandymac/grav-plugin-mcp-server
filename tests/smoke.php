@@ -189,6 +189,19 @@ check(OAuthServer::coversAllSupported(OAuthServer::supportedScopes()), 'requesti
 check(!OAuthServer::coversAllSupported(['api.pages.read']), 'a real subset does not cover everything');
 check(!OAuthServer::coversAllSupported(['api']), 'the bare api prefix leaves admin.super uncovered');
 
+// Consent-time narrowing (issue #1): what the screen offered as checkboxes,
+// intersected with what came back ticked. Null = nothing kept, which the
+// consent screen must refuse rather than mint (an empty list would be UNSCOPED).
+$all = OAuthServer::supportedScopes();
+check(OAuthServer::resolveGrant([], $all, false) === [], 'a limit-nothing request with everything ticked stays unscoped');
+check(OAuthServer::resolveGrant(['*'], $all, false) === [], 'the wildcard resolves to unscoped, never to a key');
+check(OAuthServer::resolveGrant([], $all, true) === $all, 'the freeze box caps a limit-nothing grant at the whole vocabulary');
+check(OAuthServer::resolveGrant([], ['api.pages.read', 'bogus.scope'], false) === ['api.pages.read'], 'unticking narrows a limit-nothing request to the kept subset; forged entries are dropped');
+check(OAuthServer::resolveGrant([], [], false) === null, 'nothing ticked on a limit-nothing request resolves to null, not to unscoped');
+check(OAuthServer::resolveGrant(['api.pages.read', 'api.pages.write'], ['api.pages.write', 'api.users.write'], false) === ['api.pages.write'], 'a partial request narrows to its ticked subset and cannot grow');
+check(OAuthServer::resolveGrant(['api.pages.read'], [], true) === null, 'nothing ticked on a partial request resolves to null');
+check(OAuthServer::resolveGrant(['api.pages.write', 'api.pages.read'], ['api.pages.read', 'api.pages.write'], false) === ['api.pages.write', 'api.pages.read'], 'the kept subset keeps the offered order (stable scope string)');
+
 // --- Scoped-key tool visibility (issue #16) ---
 
 $scoped = new ToolRegistry();

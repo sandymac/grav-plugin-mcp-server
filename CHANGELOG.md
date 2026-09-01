@@ -1,3 +1,9 @@
+# v1.2.0
+## 2026-09-01
+
+1. [](#new)
+    * The OAuth consent screen lets the approving user narrow the grant: every permission it lists is a checkbox, and the minted key is capped at whatever stayed ticked (issue #1). Unticking anything on a "full account access" request turns it into an explicit cap; unticking everything re-renders the form with an error instead of minting or denying. The token response reports the narrower `scope`.
+
 # v1.1.0
 ## 2026-09-01
 

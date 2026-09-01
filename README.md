@@ -70,6 +70,8 @@ Behind the scenes: the client discovers `/.well-known/oauth-protected-resource/m
 
 A client may request a `scope` of `api.*` permissions (advertised as `scopes_supported` in the discovery metadata); the granted scopes cap the minted key and are shown on the consent screen. With no scope requested — the norm for today's connectors — the key is unscoped and the consent screen says so: effective access is always the account's live permissions intersected with the key's scopes, so a dedicated bot account remains the best way to manage what a connector can do over time.
 
+Every permission on the consent screen is a checkbox. Untick any to exclude it from the grant: the minted key is capped at what stayed ticked, and the token response reports the narrower `scope` (RFC 6749 §3.3). Some clients never read that echo and assume they hold what they requested — a narrowed connection then sees fewer tools and gets permission errors on the excluded ones, which is the intended effect. The selection is frozen at approval time; to change it later, revoke and reconnect, or manage the key with `bin/plugin api keys:*`.
+
 ### CLI or desktop client (OAuth or API key)
 
 Every client needs the same two pieces: the endpoint URL, and — to skip the browser flow — an `Authorization: Bearer grav_...` header. For example, with Claude Code:
@@ -111,7 +113,8 @@ This is also why the OAuth consent screen mints an *unscoped* key for a "full ac
 access" grant: a key capped to this plugin's own advertised scopes could never reach a
 permission a plugin declares on its own. The consent screen explains this and offers a
 checkbox to freeze the grant to the listed vocabulary instead, for connectors that
-shouldn't automatically pick up whatever plugins add later.
+shouldn't automatically pick up whatever plugins add later. Unticking any listed
+permission has the same freezing effect: the grant becomes exactly what stayed ticked.
 
 ## Verify with curl
 
