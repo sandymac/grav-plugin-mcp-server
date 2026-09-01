@@ -363,12 +363,20 @@ $authParams = static fn(string $clientId): array => [
     'resource' => '',
 ];
 
+/** The scopes[] checkboxes a rendered consent form has ticked — what a browser would post. */
+function consentScopes(string $html): array
+{
+    preg_match_all('/name="scopes\[\]" value="([^"]+)" checked>/', $html, $m);
+
+    return $m[1];
+}
+
 /** authorize → consent → approve, returning the authorization code. */
 function obtainCode(string $clientId, array $params, string $username, string $password, array $extra = []): string
 {
     $consent = oauth('GET', '/mcp/oauth/authorize', $params);
     check($consent['status'] === 200, 'authorize renders the consent form');
-    $post = $params + consentSignature($consent['body']) + ['username' => $username, 'password' => $password] + $extra;
+    $post = $params + consentSignature($consent['body']) + ['username' => $username, 'password' => $password] + $extra + ['scopes' => consentScopes($consent['body'])];
     $approved = oauth('POST', '/mcp/oauth/authorize', [], $post);
     $redirect = redirectParams($approved);
     check(isset($redirect['code']), 'approval redirects back with a code');
@@ -435,7 +443,7 @@ check($staleSig['status'] === 400, 'an expired or re-stamped form is rejected');
 $freshPost = static function (array $extra) use ($authParams, $clientId): array {
     $consent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
 
-    return array_merge($authParams($clientId), consentSignature($consent['body']), $extra);
+    return array_merge($authParams($clientId), consentSignature($consent['body']), ['scopes' => consentScopes($consent['body'])], $extra);
 };
 
 $wrongPw = oauth('POST', '/mcp/oauth/authorize', [], $freshPost(['username' => 'bob', 'password' => 'nope']), '', '9.9.9.9');
@@ -463,7 +471,7 @@ check((redirectParams($denied)['error'] ?? '') === 'access_denied', 'deny redire
 // 8. Approve: code issued, state echoed, iss present.
 $consent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
 $approved = oauth('POST', '/mcp/oauth/authorize', [], array_merge($authParams($clientId), consentSignature($consent['body']), [
-    'username' => 'alice', 'password' => 'pw-alice',
+    'username' => 'alice', 'password' => 'pw-alice', 'scopes' => consentScopes($consent['body']),
 ]));
 $grant = redirectParams($approved);
 check(isset($grant['code']) && $grant['state'] === 'state-xyz' && $grant['iss'] === 'https://site.test', 'approval carries code, state, and iss');
@@ -520,7 +528,8 @@ check(str_contains($unscopedConsent['body'], 'full account access'), 'the consen
 check(str_contains($unscopedConsent['body'], 'including tools that plugins add later'), 'the full-access disclosure says the grant covers tools added later');
 check(str_contains($unscopedConsent['body'], 'capped by the account you sign in with'), 'the consent screen explains the account-permission cap');
 check(str_contains($unscopedConsent['body'], '<details><summary>What that currently includes</summary>'), 'the coverage list is collapsed and titled as a snapshot, not a contract');
-check(str_contains($unscopedConsent['body'], 'name="limit_scopes"') && !str_contains($unscopedConsent['body'], ' checked>'), 'the limit-to-listed checkbox is offered and unchecked by default');
+check(str_contains($unscopedConsent['body'], 'name="limit_scopes" value="1">'), 'the limit-to-listed checkbox is offered and unchecked by default');
+check(consentScopes($unscopedConsent['body']) === OAuthServer::supportedScopes(), 'every advertised scope is offered as a ticked checkbox');
 
 // The full-access branch shows the vocabulary only inside the collapsed
 // <details> — never as the open "limited to" list, which would read as a cap.
@@ -531,13 +540,13 @@ $scopedParams = array_merge($authParams($clientId), ['scope' => 'api.pages.read 
 $scopedConsent = oauth('GET', '/mcp/oauth/authorize', $scopedParams);
 // The raw request still rides the hidden form fields (HMAC round-trip), so
 // assert on the rendered grant list, not the whole body.
-check(str_contains($scopedConsent['body'], '<li><code>api.pages.read</code></li>') && !str_contains($scopedConsent['body'], '<code>openid'), 'the consent screen lists the granted scopes, not the raw request');
-check(!str_contains($scopedConsent['body'], 'limit_scopes'), 'a genuinely partial request gets no checkbox — it is already a cap');
+check(consentScopes($scopedConsent['body']) === ['api.pages.read'] && !str_contains($scopedConsent['body'], '<code>openid'), 'the consent screen lists the granted scopes, not the raw request');
+check(!str_contains($scopedConsent['body'], 'limit_scopes'), 'a genuinely partial request gets no freeze box — it is already a cap');
 
-$scopedPost = array_merge($scopedParams, consentSignature($scopedConsent['body']), ['username' => 'alice', 'password' => 'pw-alice']);
+$scopedPost = array_merge($scopedParams, consentSignature($scopedConsent['body']), ['username' => 'alice', 'password' => 'pw-alice', 'scopes' => ['api.pages.read', 'api.users.write']]);
 $scopedGrant = redirectParams(oauth('POST', '/mcp/oauth/authorize', [], $scopedPost));
 $scopedToken = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost((string) ($scopedGrant['code'] ?? ''), VERIFIER))['body'], true);
-check(($scopedToken['scope'] ?? '') === 'api.pages.read', 'the token response echoes the granted scope (unrecognized entries filtered out)');
+check(($scopedToken['scope'] ?? '') === 'api.pages.read', 'the token response echoes the granted scope (unrecognized entries filtered out, a forged extra checkbox ignored)');
 check(preg_match('/scopes:\s+-\s+api\.pages\.read/', (string) file_get_contents($keysFile)) === 1, 'the minted key carries the granted scope as its cap');
 
 $scopedRotated = json_decode(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $scopedToken['refresh_token']))['body'], true);
@@ -558,6 +567,38 @@ check(($capped['scope'] ?? '') === $vocabulary, 'ticking the limit box caps the 
 $cappedRotated = json_decode(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $capped['refresh_token']))['body'], true);
 check(($cappedRotated['scope'] ?? '') === $vocabulary, 'rotation preserves the frozen vocabulary cap');
 oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $cappedRotated['refresh_token']]);
+
+// 10d. Consent-time narrowing (issue #1): unticking a scope turns a
+// limit-nothing request into an explicit cap of what stayed ticked; a partial
+// request narrows the same way; nothing ticked is refused, not minted.
+$allScopes = OAuthServer::supportedScopes();
+$narrowed = array_values(array_diff($allScopes, ['api.system.write']));
+$narrowedCode = obtainCode($clientId, $authParams($clientId), 'alice', 'pw-alice', ['scopes' => $narrowed]);
+$narrowedToken = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost($narrowedCode, VERIFIER))['body'], true);
+check(($narrowedToken['scope'] ?? '') === implode(' ', $narrowed), 'unticking one scope on a full-access request mints a key capped at the rest');
+oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $narrowedToken['refresh_token']]);
+
+$pairParams = array_merge($authParams($clientId), ['scope' => 'api.pages.read api.pages.write']);
+$pairCode = obtainCode($clientId, $pairParams, 'alice', 'pw-alice', ['scopes' => ['api.pages.read']]);
+$pairToken = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost($pairCode, VERIFIER))['body'], true);
+check(($pairToken['scope'] ?? '') === 'api.pages.read', 'unticking a scope on a partial request narrows it further');
+oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $pairToken['refresh_token']]);
+
+$emptyConsent = oauth('GET', '/mcp/oauth/authorize', $pairParams);
+$emptyPost = $pairParams + consentSignature($emptyConsent['body']) + ['username' => 'alice', 'password' => 'pw-alice', 'scopes' => []];
+$emptyResult = oauth('POST', '/mcp/oauth/authorize', [], $emptyPost);
+check($emptyResult['status'] === 200 && redirectParams($emptyResult) === null && str_contains($emptyResult['body'], 'Keep at least one permission ticked'), 'nothing ticked re-renders the form with an error instead of minting or denying');
+check(consentScopes($emptyResult['body']) === [], 'the re-rendered form keeps the user\'s (empty) selection rather than re-ticking everything');
+
+$halfPost = $pairParams + consentSignature($emptyConsent['body']) + ['username' => 'alice', 'password' => 'wrong', 'scopes' => ['api.pages.write']];
+check(consentScopes(oauth('POST', '/mcp/oauth/authorize', [], $halfPost)['body']) === ['api.pages.write'], 'a failed login re-renders with the selection preserved (a typo cannot widen the grant)');
+
+// The same on a full-access request: the re-render must stop promising full
+// access once the list below it is a cap, and keep that list open.
+$fullConsent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
+$fullHalfPost = $authParams($clientId) + consentSignature($fullConsent['body']) + ['username' => 'alice', 'password' => 'wrong', 'scopes' => $narrowed];
+$fullHalf = oauth('POST', '/mcp/oauth/authorize', [], $fullHalfPost)['body'];
+check(consentScopes($fullHalf) === $narrowed && !str_contains($fullHalf, 'full account access') && str_contains($fullHalf, '<details open>'), 'a narrowed full-access request re-renders as a cap: selection kept, headline changed, list open');
 
 // 11. Revocation: killing the refresh token kills the access key too; no
 // oracle. On a fresh grant — the previous family died in the theft sweep.

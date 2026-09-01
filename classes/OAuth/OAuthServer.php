@@ -163,6 +163,54 @@ class OAuthServer
     }
 
     /**
+     * Whether a request limits nothing: no recognized scope at all, or a set
+     * that covers the whole advertised vocabulary. Such a request is shown as
+     * "full account access" and mints an unscoped key unless the user narrows.
+     *
+     * @param list<string> $requested recognized scopes from the request
+     */
+    public static function limitsNothing(array $requested): bool
+    {
+        return $requested === [] || self::coversAllSupported($requested);
+    }
+
+    /**
+     * The scopes the consent screen offers as checkboxes: a request that limits
+     * nothing offers the whole advertised vocabulary, a partial request offers
+     * exactly what it asked for.
+     *
+     * @param list<string> $requested recognized scopes from the request ([] = none)
+     * @return list<string>
+     */
+    private static function offeredScopes(array $requested): array
+    {
+        return self::limitsNothing($requested) ? self::supportedScopes() : $requested;
+    }
+
+    /**
+     * Resolve what an approval grants from what the screen offered and what the
+     * user left ticked (issue #1). The checkboxes are unsigned like the deny
+     * button: intersecting with the offered list means forging them can only
+     * narrow. Returns the scopes to store — [] is UNSCOPED, reached only when a
+     * limit-nothing request keeps every offered scope with the freeze box off —
+     * or null when nothing was kept, which the caller must refuse to mint.
+     *
+     * @param list<string> $requested recognized scopes from the request
+     * @param list<string> $ticked    the scopes[] checkboxes that came back
+     * @return list<string>|null
+     */
+    public static function resolveGrant(array $requested, array $ticked, bool $freeze): ?array
+    {
+        $offered = self::offeredScopes($requested);
+        $kept = array_values(array_intersect($offered, $ticked));
+        if ($offered !== [] && $kept === []) {
+            return null;
+        }
+
+        return self::limitsNothing($requested) && !$freeze && count($kept) === count($offered) ? [] : $kept;
+    }
+
+    /**
      * The scope entries this server recognizes: api.* permissions (what the
      * tools enforce), admin.super, or the wildcard. Anything else — openid,
      * email, and other habits clients bring — is dropped; the client learns
@@ -343,6 +391,28 @@ class OAuthServer
             $this->redirectBack($params, ['error' => 'access_denied']);
         }
 
+        // Same guard as the GET render: a signed form can only carry a scope
+        // that passed it, but never let "all entries unrecognized" degenerate
+        // into an unscoped (broader) grant.
+        $requested = self::filterScopes($params['scope']);
+        if ($params['scope'] !== '' && $requested === []) {
+            $this->redirectBack($params, ['error' => 'invalid_scope']);
+        }
+
+        // A request that limits nothing mints an UNSCOPED key: empty scopes is
+        // the only cap that still covers tools published by plugins installed
+        // later (their permissions are outside our advertised api.* vocabulary,
+        // so an explicit list can never reach them). This also normalizes the
+        // wildcard away — '*' never reaches a key. The freeze box and the
+        // per-scope checkboxes are the user's narrowing controls; unsigned like
+        // the password and the deny button, and forging them can only narrow.
+        // Nothing ticked is refused up front (before the password is spent),
+        // not treated as Deny: a stray click shouldn't end the connection.
+        $granted = self::resolveGrant($requested, self::tickedScopes() ?? [], isset($_POST['limit_scopes']));
+        if ($granted === null) {
+            $this->renderConsent($client, $params, 'Keep at least one permission ticked, or choose Deny.');
+        }
+
         $login = trim((string) ($_POST['username'] ?? ''));
 
         // Lockout keys: the client address (Uri::ip() honours the site's trusted
@@ -398,25 +468,6 @@ class OAuthServer
         }
 
         $this->store->clearFailures(...$throttleKeys);
-
-        // Same guard as the GET render: a signed form can only carry a scope
-        // that passed it, but never let "all entries unrecognized" degenerate
-        // into an unscoped (broader) grant.
-        $granted = self::filterScopes($params['scope']);
-        if ($params['scope'] !== '' && $granted === []) {
-            $this->redirectBack($params, ['error' => 'invalid_scope']);
-        }
-
-        // A request that limits nothing mints an UNSCOPED key: empty scopes is
-        // the only cap that still covers tools published by plugins installed
-        // later (their permissions are outside our advertised api.* vocabulary,
-        // so an explicit list can never reach them). This also normalizes the
-        // wildcard away — '*' never reaches a key. The checkbox is the user's
-        // opt-out, freezing the grant at today's vocabulary; unsigned like the
-        // password and the deny button, and forging it can only narrow.
-        if ($granted === [] || self::coversAllSupported($granted)) {
-            $granted = isset($_POST['limit_scopes']) ? self::supportedScopes() : [];
-        }
 
         // The code is bound to the resolved account, not to whatever was typed.
         $username = (string) $user->get('username');
@@ -638,6 +689,22 @@ class OAuthServer
         }
     }
 
+    /**
+     * The scopes[] checkboxes as posted. Every box is ticked on the first
+     * render, so only a POST (a real submission or a failed-login re-render)
+     * can mean "unticked" — null says "no submission yet, tick everything".
+     *
+     * @return list<string>|null
+     */
+    private static function tickedScopes(): ?array
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            return null;
+        }
+
+        return array_values(array_filter((array) ($_POST['scopes'] ?? []), 'is_string'));
+    }
+
     /** @return array<string, string> the OAuth params carried through the consent form */
     private function formParams(array $source): array
     {
@@ -670,33 +737,46 @@ class OAuthServer
         // (none, wildcard, or the whole advertised vocabulary — claude.ai
         // requests everything scopes_supported lists) is named for what it is
         // instead of dressed up as a 20-item "limitation".
+        // Every offered scope is a checkbox (issue #1): untick to exclude it
+        // from the grant. All ticked on first render; a re-render (failed login)
+        // keeps the user's selection, or a mistyped password would silently
+        // widen the grant.
         $scopes = self::filterScopes($params['scope']);
-        $li = static fn(string $s): string => '<li><code>' . $e($s) . '</code></li>';
+        $ticked = self::tickedScopes();
+        $li = static fn(string $s): string => '<li><label><input type="checkbox" name="scopes[]" value="' . $e($s) . '"'
+            . ($ticked === null || in_array($s, $ticked, true) ? ' checked' : '')
+            . '> <code>' . $e($s) . '</code></label></li>';
         $limitOption = '';
-        if ($scopes === [] || self::coversAllSupported($scopes)) {
-            $grants = '<p>Approving grants <strong>full account access</strong> — '
-                . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
-                . ' The connection can do anything this account can, <strong>including tools that plugins add later</strong>.</p>';
+        if (self::limitsNothing($scopes)) {
+            // Once the user unticks something (visible only on a re-render), the
+            // grant is an explicit cap and the headline must say so — the same
+            // screen must not promise full access above a narrowed list.
+            $supported = self::supportedScopes();
+            $narrowed = $ticked !== null && count(array_intersect($supported, $ticked)) < count($supported);
+            $grants = $narrowed
+                ? '<p>Approving grants access <strong>limited to the permissions ticked below</strong> — you unticked some of what the client asked for, so tools that plugins add later are excluded too.</p>'
+                : '<p>Approving grants <strong>full account access</strong> — '
+                    . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
+                    . ' The connection can do anything this account can, <strong>including tools that plugins add later</strong>.</p>';
             // The expansion is the advertised vocabulary, collapsed by default:
             // the point of this branch is that the list is not a limitation,
             // so it's there for the curious, not in everyone's way. Titled as a
-            // snapshot, because the grant is not limited to it.
-            $supported = self::supportedScopes();
+            // snapshot, because the grant is not limited to it — until the user
+            // unticks something, which keeps the list open so the cap stays visible.
             if ($supported !== []) {
-                $grants .= '<details><summary>What that currently includes</summary><ul>'
+                $grants .= '<details' . ($narrowed ? ' open' : '') . '><summary>What that currently includes</summary>'
+                    . '<p class="cap">Untick a permission to exclude it from this connection.</p><ul class="scopes">'
                     . implode('', array_map($li, $supported))
                     . '</ul></details>';
-                // Opt-out, so the default keeps working as tools appear. Lives in
-                // the form; its state survives a failed-login re-render, or a
-                // mistyped password would silently widen the grant.
+                // Opt-out, so the default keeps working as tools appear.
                 $limitOption = '<label class="limit"><input type="checkbox" name="limit_scopes" value="1"'
                     . (isset($_POST['limit_scopes']) ? ' checked' : '')
-                    . '> Limit this connection to only the permissions listed above (tools added by future plugin updates will be excluded)</label>';
+                    . '> Limit this connection to only the permissions ticked above (tools added by future plugin updates will be excluded)</label>';
             }
         } else {
-            $grants = '<p>Approving grants access limited to:</p><ul>'
+            $grants = '<p>Approving grants access limited to:</p><ul class="scopes">'
                 . implode('', array_map($li, $scopes))
-                . '</ul>';
+                . '</ul><p class="cap">Untick a permission to exclude it from this connection.</p>';
         }
         $grants .= '<p class="cap">Whatever you approve is capped by the account you sign in with: the connector can never do more than that account\'s own permissions allow.</p>';
 
@@ -710,11 +790,11 @@ class OAuthServer
         $this->html(200, <<<HTML
             <h1>{$site}</h1>
             <p><strong>{$name}</strong> ({$host}) is requesting MCP access to this site.</p>
-            {$grants}
-            <p>Sign in with your Grav account to approve.</p>
-            {$errorHtml}
             <form method="post" autocomplete="off">
               {$hidden}
+              {$grants}
+              <p>Sign in with your Grav account to approve.</p>
+              {$errorHtml}
               <label>Username <input type="text" name="username" required autofocus></label>
               <label>Password <input type="password" name="password" required></label>
               <label>Two-factor code <input type="text" name="twofa" inputmode="numeric" autocomplete="one-time-code" placeholder="if enabled on your account"></label>
@@ -773,6 +853,8 @@ class OAuthServer
               details{margin:.75rem 0}
               summary{cursor:pointer;color:#555;font-size:.9rem}
               label{display:block;margin:.75rem 0}
+              .scopes{padding-left:1.25rem}
+              .scopes label{display:inline;margin:0}
               .limit{color:#555;font-size:.9rem}
               input[type=text],input[type=password]{width:100%;padding:.5rem;box-sizing:border-box}
               .buttons{margin-top:1rem;display:flex;gap:.5rem}
