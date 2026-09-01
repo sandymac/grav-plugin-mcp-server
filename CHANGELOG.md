@@ -1,7 +1,10 @@
-# v1.0.4
+# v1.1.0
 ## 2026-09-01
 
+1. [](#new)
+    * Plugin tools: MCP tools that third-party Grav plugins publish (an `mcp.yaml` manifest, or the `onApiMcpTools` event) are now served alongside the built-in tools, fetched from the api plugin's `GET /mcp/tools`. Controlled by a new `plugin_tools` config toggle (on by default); `discover_plugins` now also reports which installed plugins publish tools of their own.
 1. [](#improved)
+    * OAuth consent that limits nothing (no scope, the wildcard, or the whole advertised vocabulary — what claude.ai requests by default) now mints an unscoped API key instead of one capped to the advertised list, so tools a plugin publishes under its own permissions are reachable too. The consent screen explains that full access includes tools plugins add later, and offers a checkbox to freeze the grant to today's listed vocabulary instead. Existing connections are unaffected until they re-consent.
     * `run_scheduler` now supports the api plugin's new run modes: `mode` picks which jobs run — `overdue` (the default: everything that has missed its scheduled time), `due` (this exact minute only), or `all` — and `job` runs a single job by id. The response reports which jobs ran and each one's outcome.
     * Requires api plugin 1.0.22+ (was 1.0.19) — the release the run modes actually shipped in, despite being announced in 1.0.21's changelog. 1.0.22 also brings the fix for API-key requests failing on sites where `user/data` is not writable by the web server.
 

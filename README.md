@@ -94,6 +94,25 @@ claude mcp add --transport http grav https://grav.example.com/mcp --header "Auth
 }
 ```
 
+## Plugin tools
+
+Other installed plugins can publish their own REST routes as MCP tools — an `mcp.yaml`
+manifest at the plugin root, or the `onApiMcpTools` event — served by the API plugin's
+`GET /mcp/tools` and offered here alongside the built-in tools. If you're authoring a
+plugin, follow the manifest reference in grav-plugin-api's README ("MCP tool manifests"
+section): https://github.com/getgrav/grav-plugin-api.
+
+Controlled by the `plugin_tools` config toggle (on by default; set to `false` to serve
+only the built-in tools). Like every tool here, visibility follows the caller's own Grav
+permissions — a plugin tool only shows up for accounts that hold whatever permission it
+declares.
+
+This is also why the OAuth consent screen mints an *unscoped* key for a "full account
+access" grant: a key capped to this plugin's own advertised scopes could never reach a
+permission a plugin declares on its own. The consent screen explains this and offers a
+checkbox to freeze the grant to the listed vocabulary instead, for connectors that
+shouldn't automatically pick up whatever plugins add later.
+
 ## Verify with curl
 
 ```bash
