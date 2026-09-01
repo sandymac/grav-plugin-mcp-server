@@ -325,7 +325,7 @@ class OAuthServer
     private function rejectRegistration(string $error, string $description, string $body): never
     {
         $this->log('warning', sprintf('registration rejected from %s: %s; request: %s',
-            Uri::ip(), $description, preg_replace('/\s+/', ' ', mb_substr($body, 0, 2000))));
+            Uri::ip(), $description, (string) preg_replace('/\s+/', ' ', substr($body, 0, 2000))));
         $this->json(400, ['error' => $error, 'error_description' => $description]);
     }
 
