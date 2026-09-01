@@ -1,7 +1,7 @@
 name: MCP Server
 slug: mcp-server
 type: plugin
-version: 1.0.3
+version: 1.0.4
 description: Serves a Model Context Protocol (MCP) endpoint directly from your Grav site over Streamable HTTP. Point your MCP client or LLM/AI agent at https://yoursite/mcp.
 icon: plug
 author:
@@ -17,7 +17,7 @@ compatibility:
 
 dependencies:
   - { name: grav, version: ">=2.0.17" }
-  - { name: api, version: ">=1.0.19" }
+  - { name: api, version: ">=1.0.22" }
 
 form:
   validation: loose

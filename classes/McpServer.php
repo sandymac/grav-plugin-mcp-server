@@ -18,10 +18,10 @@ use Grav\Common\Grav;
 class McpServer
 {
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
-    public const string VERSION = '1.0.3';
+    public const string VERSION = '1.0.4';
 
     /** Matches the api dependency floor in blueprints.yaml — smoke asserts they agree. */
-    public const string MIN_API_VERSION = '1.0.19';
+    public const string MIN_API_VERSION = '1.0.22';
     public const array SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'];
 
     private ToolRegistry $tools;

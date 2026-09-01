@@ -15,7 +15,7 @@ Works with **hosted connectors** (built-in OAuth 2.1 authorization server with d
 
 - Grav 2.0.17+
 - PHP 8.3+ (Grav 2 core's own floor)
-- [API plugin](https://github.com/getgrav/grav-plugin-api) **1.0.19 or newer**, installed and enabled, with at least one API key:
+- [API plugin](https://github.com/getgrav/grav-plugin-api) **1.0.22 or newer**, installed and enabled, with at least one API key:
   `bin/plugin api keys:generate --user=admin --name="MCP"`
 
 Tools map 1:1 onto API plugin endpoints, so an older API plugin 404s on tools backed by

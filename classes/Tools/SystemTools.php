@@ -148,15 +148,22 @@ final class SystemTools
                 'descriptor' => [
                     'name' => 'run_scheduler',
                     'title' => 'Run Scheduler',
-                    'description' => 'Manually trigger a scheduler run to execute due jobs immediately. [Requires: api.scheduler.write]',
+                    'description' => 'Manually trigger a scheduler run. By default runs every enabled job that has missed its scheduled time ("overdue"); mode "due" runs only jobs scheduled for this exact minute, "all" runs every enabled job. Or pass `job` to run a single job by id (ids from get_scheduler). Reports which jobs ran and each one\'s outcome. [Requires: api.scheduler.write]',
                     'inputSchema' => [
                         'type' => 'object',
-                        'properties' => new \stdClass(),
+                        'properties' => [
+                            'mode' => ['type' => 'string', 'enum' => ['due', 'overdue', 'all'], 'description' => 'Which jobs to run (default: "overdue")'],
+                            'job' => ['type' => 'string', 'description' => 'Run only this job id, regardless of schedule (mode is ignored)'],
+                        ],
                         'additionalProperties' => false,
                     ],
                     'annotations' => ['readOnlyHint' => false],
                 ],
-                'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse($api->request('POST', '/scheduler/run')),
+                'handler' => static function (ApiBridge $api, array $args): array {
+                    $body = array_intersect_key($args, ['mode' => 1, 'job' => 1]);
+
+                    return ApiBridge::fromResponse($api->request('POST', '/scheduler/run', [], $body ?: null));
+                },
             ],
 
             'run_reports' => [

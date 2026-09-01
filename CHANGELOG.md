@@ -1,3 +1,10 @@
+# v1.0.4
+## 2026-09-01
+
+1. [](#improved)
+    * `run_scheduler` now supports the api plugin's new run modes: `mode` picks which jobs run — `overdue` (the default: everything that has missed its scheduled time), `due` (this exact minute only), or `all` — and `job` runs a single job by id. The response reports which jobs ran and each one's outcome.
+    * Requires api plugin 1.0.22+ (was 1.0.19) — the release the run modes actually shipped in, despite being announced in 1.0.21's changelog. 1.0.22 also brings the fix for API-key requests failing on sites where `user/data` is not writable by the web server.
+
 # v1.0.3
 ## 2026-08-20
 
