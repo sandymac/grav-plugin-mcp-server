@@ -295,7 +295,7 @@ class OAuthServer
             if (!is_string($uri) || !$this->redirectUriAllowed($uri)) {
                 $this->rejectRegistration('invalid_redirect_uri', sprintf(
                     'redirect_uri %s is not allowed: must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts',
-                    json_encode($uri, JSON_UNESCAPED_SLASHES)
+                    mb_substr((string) json_encode($uri, JSON_UNESCAPED_SLASHES), 0, 200)
                 ), $raw);
             }
         }
@@ -320,11 +320,12 @@ class OAuthServer
      * Refuse a registration and leave the request in the log. Hosted connectors
      * (claude.ai, Gemini) show the user only a generic "rejected" message, so
      * the site log is the one place the offending redirect_uri can be seen.
+     * The endpoint is public, so everything echoed is bounded first.
      */
     private function rejectRegistration(string $error, string $description, string $body): never
     {
         $this->log('warning', sprintf('registration rejected from %s: %s; request: %s',
-            Uri::ip(), $description, mb_substr((string) preg_replace('/\s+/', ' ', $body), 0, 2000)));
+            Uri::ip(), $description, preg_replace('/\s+/', ' ', mb_substr($body, 0, 2000))));
         $this->json(400, ['error' => $error, 'error_description' => $description]);
     }
 

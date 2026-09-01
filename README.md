@@ -66,6 +66,8 @@ Your web server must pass unmatched `/.well-known/*` paths through to Grav's `in
 
 In the client's connector settings, add a custom connector with URL `https://grav.example.com/mcp`. Leave any OAuth client ID/secret fields empty — the client registers itself via dynamic client registration. When prompted, sign in with your Grav credentials on the consent screen and approve.
 
+Registration is refused when any redirect URI the client sends is off `oauth.allowed_redirect_hosts`. The defaults cover claude.ai, ChatGPT, Gemini (all three `oauth-redirect*.googleusercontent.com` hosts it registers at once), Mistral, and the VS Code / Cursor / Windsurf sign-in hosts; a client whose registration is rejected leaves a `registration rejected` line in `grav.log` naming the offending URI, so a customized list can be fixed from there.
+
 Behind the scenes: the client discovers `/.well-known/oauth-protected-resource/mcp` → registers at `/mcp/oauth/register` → authorization-code + PKCE flow at `/mcp/oauth/authorize` → tokens from `/mcp/oauth/token`. The access token is a real `grav_` API key (visible in `bin/plugin api keys:list`); revoke it at `/mcp/oauth/revoke` (revoking either the refresh token or access key revokes both).
 
 A client may request a `scope` of `api.*` permissions (advertised as `scopes_supported` in the discovery metadata); the granted scopes cap the minted key and are shown on the consent screen. With no scope requested — the norm for today's connectors — the key is unscoped and the consent screen says so: effective access is always the account's live permissions intersected with the key's scopes, so a dedicated bot account remains the best way to manage what a connector can do over time.
