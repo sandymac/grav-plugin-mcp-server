@@ -3,6 +3,9 @@
 
 1. [](#new)
     * The OAuth consent screen lets the approving user narrow the grant: every permission it lists is a checkbox, and the minted key is capped at whatever stayed ticked (issue #1). Unticking anything on a "full account access" request turns it into an explicit cap; unticking everything re-renders the form with an error instead of minting or denying. The token response reports the narrower `scope`.
+1. [](#improved)
+    * Rejected OAuth client registrations now land in `grav.log` with the reason, the caller IP, and the request body. Hosted connectors (Gemini Spark, claude.ai) show only a generic "redirect URL was rejected" message, so the site log is where the offending `redirect_uri` can be seen; the `error_description` names the rejected URI too. Registration throttling (429) is logged as well.
+    * Gemini (Spark custom connected apps) connects out of the box: its three redirect hosts (`oauth-redirect.googleusercontent.com` plus the `-sandbox` and `-test` variants) are in the default `allowed_redirect_hosts`. Gemini registers all three in one request, and a registration is refused if any listed `redirect_uri` is off the allowlist, so sites that customized the list need all three.
 
 # v1.1.0
 ## 2026-09-01

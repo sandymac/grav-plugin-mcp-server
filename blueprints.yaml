@@ -122,6 +122,9 @@ form:
                 - cursor.com
                 - windsurf.com
                 - chat.mistral.ai
+                - oauth-redirect.googleusercontent.com
+                - oauth-redirect-sandbox.googleusercontent.com
+                - oauth-redirect-test.googleusercontent.com
               validate:
                 type: commalist
 
