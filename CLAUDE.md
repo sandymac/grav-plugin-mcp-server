@@ -20,6 +20,7 @@ A Grav CMS plugin (PHP 8.3+, matching Grav 2 core; Grav 2.0.17+) that serves an 
 - **Permissions are `api.*`, not `admin.*`**: Grav 2 + Admin2 use the `api.login` / `api.super` tree; `admin.login` / `admin.super` are the legacy classic-Admin (Grav 1.7) tree. To ask "does this account hold permission X?" outside a login session, use grav-plugin-api's `PermissionResolver::resolve()` — **never** `$user->authorize()`, which needs the `authenticated` property that only the Login plugin's session flow sets, and whose two core implementations disagree on what a scope argument means.
 - Never commit API keys. Keys look like `grav_...` and live only in local config / `.mcp.json` files.
 - No local PHP or Composer required — run PHP via Docker (e.g. `docker run --rm -v "$PWD:/app" php:8.3-cli php /app/tests/smoke.php`).
+  **From Git Bash on Windows use** `MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" php:8.3-cli php /app/tests/smoke.php` — otherwise MSYS rewrites the `-v` colon into `...;C:\Program Files\Git\app`, docker mounts nothing, and it auto-creates a stray `<dir>;C` directory next to the repo.
 - Keep it lazy: no new dependencies, no speculative abstractions. The composer.json exists for GPM metadata/autoload; the spl fallback in `mcp-server.php` means `vendor/` is optional.
 - On a deployed site, PHP class changes take effect immediately; **YAML config changes need `bin/grav clearcache`** (the command is `clearcache`, not `clear-cache`).
 

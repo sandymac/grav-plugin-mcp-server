@@ -16,6 +16,9 @@ declare(strict_types=1);
  *   docker run --rm -v "$PWD:/app" php:8.3-cli php /app/tests/param-map.php
  *   API_PLUGIN_DIR=/tmp/grav-plugin-api php tests/param-map.php
  *
+ * Git Bash on Windows: MSYS_NO_PATHCONV=1 with -v "$(pwd -W):/app", or MSYS
+ * mangles the -v colon and docker mounts nothing (see CLAUDE.md).
+ *
  * The api plugin is read as TEXT, never loaded — no Grav, no vendor, no autoload.
  */
 
