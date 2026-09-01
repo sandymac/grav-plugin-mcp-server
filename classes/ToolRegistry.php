@@ -9,8 +9,9 @@ use Grav\Common\User\Interfaces\UserInterface;
 
 /**
  * MCP tool descriptors and dispatch: the built-in site_info tool plus every
- * domain class in DOMAINS. Descriptors are static data — no Grav needed to
- * list them.
+ * domain class in DOMAINS. Core descriptors are static data — no Grav needed to
+ * list them; the tools other plugins publish (PluginTools) need one, and are
+ * simply absent without it.
  */
 class ToolRegistry
 {
@@ -42,6 +43,9 @@ class ToolRegistry
     /** @var array<string, array{descriptor: array, permission: ?string, handler: callable}>|null */
     private ?array $tools = null;
 
+    /** @var array<string, array{descriptor: array, permission: ?string, handler: callable}>|null plugin-published tools for this caller. */
+    private ?array $pluginTools = null;
+
     public function __construct(private readonly ?Grav $grav = null)
     {
     }
@@ -53,13 +57,14 @@ class ToolRegistry
         $this->scopes = array_values($scopes);
         $this->user = $user;
         $this->bridge = null;
+        $this->pluginTools = null; // /mcp/tools is filtered per caller
     }
 
     /** @return list<array<string, mixed>> MCP tool descriptors */
     public function list(): array
     {
         $descriptors = [];
-        foreach ($this->all() as $tool) {
+        foreach ($this->all() + $this->pluginTools() as $tool) {
             if ($this->visible($tool['permission'])) {
                 $descriptors[] = $tool['descriptor'];
             }
@@ -70,7 +75,7 @@ class ToolRegistry
 
     public function has(string $name): bool
     {
-        $tool = $this->all()[$name] ?? null;
+        $tool = $this->tool($name);
 
         return $tool !== null && $this->visible($tool['permission']);
     }
@@ -78,7 +83,11 @@ class ToolRegistry
     /** @return array<string, mixed> MCP CallToolResult */
     public function call(string $name, array $arguments): array
     {
-        return ($this->all()[$name]['handler'])($this->bridge(), $arguments);
+        // Unknown is unreachable (McpServer gates on has()); a throw here lands
+        // in its catch as an isError result rather than a fatal.
+        $handler = $this->tool($name)['handler'] ?? throw new \RuntimeException("Unknown tool: {$name}");
+
+        return $handler($this->bridge(), $arguments);
     }
 
     /**
@@ -138,7 +147,7 @@ class ToolRegistry
      */
     public function missingPermission(string $name): ?string
     {
-        $tool = $this->all()[$name] ?? null;
+        $tool = $this->tool($name);
         if ($tool === null || $this->visible($tool['permission'])) {
             return null;
         }
@@ -146,7 +155,12 @@ class ToolRegistry
         return $tool['permission'];
     }
 
-    /** @return array{visible: int, hidden: int, hidden_by_missing_permission: array<string, list<string>>} */
+    /**
+     * Core tools only: a plugin tool the caller lacks the permission for never
+     * reaches us, so there is no hidden set to report for those.
+     *
+     * @return array{visible: int, hidden: int, hidden_by_missing_permission: array<string, list<string>>}
+     */
     public function toolAccess(): array
     {
         $visible = 0;
@@ -182,9 +196,32 @@ class ToolRegistry
         return $map;
     }
 
-    private function bridge(): ApiBridge
+    // protected so tests/plugin-tools.php can substitute a recording bridge.
+    protected function bridge(): ApiBridge
     {
         return $this->bridge ??= new ApiBridge($this->grav, $this->apiKey);
+    }
+
+    /** A core tool, or a plugin tool from the manifest endpoint. */
+    private function tool(string $name): ?array
+    {
+        return $this->all()[$name] ?? $this->pluginTools()[$name] ?? null;
+    }
+
+    /**
+     * Tools other plugins publish, fetched once per caller. Core names win a
+     * collision, so this can only ever add to the surface.
+     *
+     * @return array<string, array{descriptor: array, permission: ?string, handler: callable}>
+     */
+    private function pluginTools(): array
+    {
+        if ($this->pluginTools === null) {
+            $data = PluginTools::fetch($this->bridge(), $this->grav);
+            $this->pluginTools = $data === null ? [] : PluginTools::tools($data, array_keys($this->all()));
+        }
+
+        return $this->pluginTools;
     }
 
     /** @return array<string, array{descriptor: array, permission: ?string, handler: callable}> */

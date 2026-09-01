@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Grav\Plugin\McpServer\Tools;
 
+use Grav\Common\Grav;
 use Grav\Plugin\McpServer\ApiBridge;
+use Grav\Plugin\McpServer\PluginTools;
 
 /**
  * Plugins domain: runtime discovery of plugin-contributed admin UI surface
@@ -21,7 +23,7 @@ final class PluginsTools
                 'descriptor' => [
                     'name' => 'discover_plugins',
                     'title' => 'Discover Plugin Features',
-                    'description' => 'Discover what features installed plugins expose: sidebar items, floating widgets, context panels, settings panels, and custom admin pages. [Requires: api.access]',
+                    'description' => 'Discover what features installed plugins expose: sidebar items, floating widgets, context panels, settings panels, custom admin pages, and which plugins publish MCP tools of their own. [Requires: api.access]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => new \stdClass(),
@@ -60,6 +62,20 @@ final class PluginsTools
                         'settings_panels' => self::listData($api, '/settings/panels'),
                         'plugin_pages' => $pluginPages,
                     ];
+
+                    // Which plugins publish MCP tools of their own, and what the
+                    // manifest reader had to skip. Absent when plugin tools are
+                    // off or the endpoint is unreachable.
+                    $manifest = PluginTools::fetch($api, class_exists(Grav::class) ? Grav::instance() : null);
+                    if ($manifest !== null) {
+                        $data['mcp_tools'] = array_map(
+                            static fn(array $plugin): array => ['plugin' => $plugin['slug'] ?? null, 'tools' => $plugin['tools'] ?? 0],
+                            $manifest['plugins']
+                        );
+                        if ($manifest['warnings'] !== []) {
+                            $data['mcp_tool_warnings'] = $manifest['warnings'];
+                        }
+                    }
 
                     return ApiBridge::toolJson($data);
                 },

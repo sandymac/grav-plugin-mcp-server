@@ -62,6 +62,39 @@ namespace Grav\Plugin\McpServer\OAuth {
     }
 }
 
+namespace Grav\Plugin\McpServer {
+    /**
+     * A stand-in for the real registry: OAuthServer's scope vocabulary reads
+     * exactly these two members, and smoke.php asserts the real derivation
+     * against the real tools. A fixed vocabulary here is what makes the
+     * limit-nothing branches — full-access disclosure, the "limit to what is
+     * listed" checkbox, and the unscoped-vs-capped mint — testable at all.
+     */
+    class ToolRegistry
+    {
+        public function __construct(private readonly mixed $grav = null)
+        {
+        }
+
+        /** @return array<string, list<string>> permission => tools, '' for the ungated ones */
+        public function permissionMap(): array
+        {
+            return ['' => ['site_info'], 'api.pages.read' => ['list_pages'], 'api.system.write' => ['clear_cache']];
+        }
+
+        public static function scopeAllows(array $scopes, string $permission): bool
+        {
+            foreach ($scopes as $scope) {
+                if ($scope === '*' || $scope === $permission || str_starts_with($permission, $scope . '.')) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+}
+
 namespace {
 
 use Grav\Common\Config\Config;
@@ -331,11 +364,11 @@ $authParams = static fn(string $clientId): array => [
 ];
 
 /** authorize → consent → approve, returning the authorization code. */
-function obtainCode(string $clientId, array $params, string $username, string $password): string
+function obtainCode(string $clientId, array $params, string $username, string $password, array $extra = []): string
 {
     $consent = oauth('GET', '/mcp/oauth/authorize', $params);
     check($consent['status'] === 200, 'authorize renders the consent form');
-    $post = $params + consentSignature($consent['body']) + ['username' => $username, 'password' => $password];
+    $post = $params + consentSignature($consent['body']) + ['username' => $username, 'password' => $password] + $extra;
     $approved = oauth('POST', '/mcp/oauth/authorize', [], $post);
     $redirect = redirectParams($approved);
     check(isset($redirect['code']), 'approval redirects back with a code');
@@ -464,6 +497,7 @@ $keysBefore = (string) file_get_contents($keysFile);
 $refreshPost = static fn(string $token): array => ['grant_type' => 'refresh_token', 'refresh_token' => $token, 'client_id' => $GLOBALS['clientId']];
 $rotated = json_decode(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $issued['refresh_token']))['body'], true);
 check(str_starts_with((string) ($rotated['access_token'] ?? ''), 'grav_') && $rotated['access_token'] !== $issued['access_token'], 'refresh issues a new access key');
+check(!array_key_exists('scope', (array) $rotated), 'rotation keeps an unscoped grant unscoped (no silent capping)');
 $keysAfter = (string) file_get_contents($keysFile);
 $countKeys = static fn(string $yaml): int => substr_count($yaml, 'username: alice');
 check($countKeys($keysAfter) === $countKeys($keysBefore), 'rotation revoked the superseded access key (no key pile-up)');
@@ -483,19 +517,22 @@ check((redirectParams($junkScope)['error'] ?? '') === 'invalid_scope', 'a wholly
 
 $unscopedConsent = oauth('GET', '/mcp/oauth/authorize', $authParams($clientId));
 check(str_contains($unscopedConsent['body'], 'full account access'), 'the consent screen names an unscoped grant full account access');
+check(str_contains($unscopedConsent['body'], 'including tools that plugins add later'), 'the full-access disclosure says the grant covers tools added later');
 check(str_contains($unscopedConsent['body'], 'capped by the account you sign in with'), 'the consent screen explains the account-permission cap');
+check(str_contains($unscopedConsent['body'], '<details><summary>What that currently includes</summary>'), 'the coverage list is collapsed and titled as a snapshot, not a contract');
+check(str_contains($unscopedConsent['body'], 'name="limit_scopes"') && !str_contains($unscopedConsent['body'], ' checked>'), 'the limit-to-listed checkbox is offered and unchecked by default');
 
-// In production the full-access branch also carries a collapsed <details>
-// list of the advertised vocabulary; this harness has no ToolRegistry, so
-// no vocabulary and no list — the open "limited to" list must stay absent.
+// The full-access branch shows the vocabulary only inside the collapsed
+// <details> — never as the open "limited to" list, which would read as a cap.
 $starConsent = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['scope' => '*']));
-check(str_contains($starConsent['body'], 'full account access') && !str_contains($starConsent['body'], '<li>'), 'a wildcard request is named full account access, not listed as a limitation');
+check(str_contains($starConsent['body'], 'full account access') && !str_contains($starConsent['body'], 'limited to'), 'a wildcard request is named full account access, not listed as a limitation');
 
 $scopedParams = array_merge($authParams($clientId), ['scope' => 'api.pages.read openid']);
 $scopedConsent = oauth('GET', '/mcp/oauth/authorize', $scopedParams);
 // The raw request still rides the hidden form fields (HMAC round-trip), so
 // assert on the rendered grant list, not the whole body.
 check(str_contains($scopedConsent['body'], '<li><code>api.pages.read</code></li>') && !str_contains($scopedConsent['body'], '<code>openid'), 'the consent screen lists the granted scopes, not the raw request');
+check(!str_contains($scopedConsent['body'], 'limit_scopes'), 'a genuinely partial request gets no checkbox — it is already a cap');
 
 $scopedPost = array_merge($scopedParams, consentSignature($scopedConsent['body']), ['username' => 'alice', 'password' => 'pw-alice']);
 $scopedGrant = redirectParams(oauth('POST', '/mcp/oauth/authorize', [], $scopedPost));
@@ -510,6 +547,17 @@ oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $scopedRotated['refr
 // scopes_supported in the served metadata needs the plugin autoloader, which
 // this harness doesn't register — the derivation is asserted in smoke.php.
 check(!array_key_exists('scope', (array) $issued), 'an unscoped grant has no scope member in the token response');
+
+// 10c. A limit-nothing consent mints unscoped ($issued above, granted with the
+// box unchecked); ticking the box freezes the grant at today's vocabulary, and
+// rotation carries that frozen list forward unchanged.
+$vocabulary = implode(' ', OAuthServer::supportedScopes());
+$cappedCode = obtainCode($clientId, $authParams($clientId), 'alice', 'pw-alice', ['limit_scopes' => '1']);
+$capped = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost($cappedCode, VERIFIER))['body'], true);
+check(($capped['scope'] ?? '') === $vocabulary, 'ticking the limit box caps the key at the advertised vocabulary');
+$cappedRotated = json_decode(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $capped['refresh_token']))['body'], true);
+check(($cappedRotated['scope'] ?? '') === $vocabulary, 'rotation preserves the frozen vocabulary cap');
+oauth('POST', '/mcp/oauth/revoke', [], ['token' => (string) $cappedRotated['refresh_token']]);
 
 // 11. Revocation: killing the refresh token kills the access key too; no
 // oracle. On a fresh grant — the previous family died in the theft sweep.

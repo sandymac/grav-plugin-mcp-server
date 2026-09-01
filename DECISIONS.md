@@ -26,6 +26,30 @@ read its rationale first — most were validated against a live deployment.
    field/widget/panel discovery, the SPA's own translation dictionary), binary downloads,
    and the public auth/login flows. Tool names and schemas may diverge from grav-mcp
    wherever the API warrants it.
+5. **Plugin tools ride the api plugin's manifest surface** (2026-09-01): tools that
+   third-party plugins publish through `GET /mcp/tools` (api plugin 1.0.22+) are offered
+   as MCP tools ("plugin tools" — see CONTEXT.md). Consumed via an in-process
+   `ApiBridge` request so the api plugin's controller keeps owning validation and
+   per-caller permission filtering — never by calling `McpManifestLoader` directly.
+   Fetched fresh per request (stateless server; a manifest load is a few YAML reads),
+   the `fingerprint`/ETag deliberately unused until a real site shows the cost. Name
+   collisions with core tools drop the plugin tool; skips and manifest warnings go to
+   `grav.log` at debug and surface through `discover_plugins`. One site-wide boolean
+   (`plugin_tools`, default on) is the operator kill switch; per-user control is just
+   Grav permissions, which the api plugin already enforces — no mechanism of ours.
+   Dispatch semantics (path substitution, query/body split, annotation mapping,
+   description composition) follow grav-mcp's `docs/plugin-tools-spec.md` so plugin
+   authors see one behavior across both servers.
+6. **A key's scope list is the whole story: empty = full account access, non-empty =
+   deliberate cap** (2026-09-01): a limit-nothing consent (no scope, `*`, or the whole
+   advertised vocabulary — claude.ai's default) mints an *unscoped* key, so "full
+   account access" includes permissions outside the `api.*` vocabulary, like the ones
+   plugin tools declare — which an explicit full-vocabulary list can never satisfy. The
+   consent screen says the grant grows as plugins add tools, and offers a checkbox to
+   instead freeze the grant to the listed vocabulary (minting it explicitly). The choice
+   resolves at consent time into the stored scopes; nothing else is stored. Existing
+   keys are **never silently promoted** — refresh rotation preserves scopes, and an old
+   connector broadens only by re-consenting through the screen that explains it.
 
 ## Non-decision: the OAuth server stays inside this plugin
 

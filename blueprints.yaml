@@ -1,7 +1,7 @@
 name: MCP Server
 slug: mcp-server
 type: plugin
-version: 1.0.4
+version: 1.1.0
 description: Serves a Model Context Protocol (MCP) endpoint directly from your Grav site over Streamable HTTP. Point your MCP client or LLM/AI agent at https://yoursite/mcp.
 icon: plug
 author:
@@ -53,6 +53,21 @@ form:
               type: toggle
               label: Require API key (Bearer) authentication
               help: "Leave enabled. Disabling serves the MCP endpoint to anonymous callers — only the API plugin's own checks then stand between the internet and this site's admin tool surface. Local development only."
+              highlight: 1
+              default: true
+              options:
+                1: PLUGIN_ADMIN.ENABLED
+                0: PLUGIN_ADMIN.DISABLED
+              validate:
+                type: bool
+            section_plugin_tools:
+              type: section
+              title: Plugin Tools
+              underline: true
+            plugin_tools:
+              type: toggle
+              label: Serve tools published by other plugins
+              help: "Plugins that ship an mcp.yaml manifest (or answer the onApiMcpTools event) have their API routes offered as MCP tools alongside this plugin's own, filtered to the caller's permissions. Disable to serve only the built-in tools."
               highlight: 1
               default: true
               options:

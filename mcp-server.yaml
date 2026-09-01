@@ -26,6 +26,12 @@ oauth:
     - windsurf.com
     - chat.mistral.ai
 
+# Serve tools other plugins publish through grav-plugin-api's /mcp/tools
+# manifest endpoint (an mcp.yaml at the plugin root, or the onApiMcpTools
+# event), on top of this plugin's own. Each is filtered to the caller's
+# permissions by the api plugin before it reaches a client.
+plugin_tools: true
+
 # Bearer auth against grav-plugin-api's key store. Leave enabled: disabling
 # serves the MCP endpoint to anonymous callers, leaving only the api plugin's
 # own checks between the internet and the admin tool surface. Local dev only.

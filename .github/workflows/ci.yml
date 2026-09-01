@@ -19,6 +19,8 @@ jobs:
 
       - run: php tests/smoke.php
 
+      - run: php tests/plugin-tools.php
+
       # param-map.php parses the api plugin as text, so a shallow clone is all it
       # needs. Pinned to the last triaged release (tests/api-plugin.pin) so ci is
       # deterministic; the upstream-drift workflow tracks new releases.
