@@ -277,24 +277,26 @@ class OAuthServer
         // and the age prune plus MAX_PENDING still bound the file.
         $throttleKey = 'reg:' . Uri::ip();
         if ($this->store->failureCount($throttleKey) >= self::MAX_REGISTRATIONS) {
+            $this->log('warning', sprintf('registration throttled: %d registrations from %s within %d minutes', self::MAX_REGISTRATIONS, Uri::ip(), intdiv(self::LOCKOUT_TTL, 60)));
             $this->json(429, ['error' => 'too_many_requests', 'error_description' => 'Too many client registrations from this address. Try again later.']);
         }
 
-        $meta = json_decode((string) file_get_contents('php://input'), true);
+        $raw = (string) file_get_contents('php://input');
+        $meta = json_decode($raw, true);
         if (!is_array($meta)) {
-            $this->json(400, ['error' => 'invalid_client_metadata']);
+            $this->rejectRegistration('invalid_client_metadata', 'request body must be a JSON object', $raw);
         }
 
         $uris = $meta['redirect_uris'] ?? [];
         if (!is_array($uris) || $uris === []) {
-            $this->json(400, ['error' => 'invalid_redirect_uri', 'error_description' => 'redirect_uris is required']);
+            $this->rejectRegistration('invalid_redirect_uri', 'redirect_uris is required', $raw);
         }
         foreach ($uris as $uri) {
             if (!is_string($uri) || !$this->redirectUriAllowed($uri)) {
-                $this->json(400, [
-                    'error' => 'invalid_redirect_uri',
-                    'error_description' => 'redirect_uri must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts',
-                ]);
+                $this->rejectRegistration('invalid_redirect_uri', sprintf(
+                    'redirect_uri %s is not allowed: must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts',
+                    json_encode($uri, JSON_UNESCAPED_SLASHES)
+                ), $raw);
             }
         }
 
@@ -312,6 +314,18 @@ class OAuthServer
             'grant_types' => ['authorization_code', 'refresh_token'],
             'response_types' => ['code'],
         ]);
+    }
+
+    /**
+     * Refuse a registration and leave the request in the log. Hosted connectors
+     * (claude.ai, Gemini) show the user only a generic "rejected" message, so
+     * the site log is the one place the offending redirect_uri can be seen.
+     */
+    private function rejectRegistration(string $error, string $description, string $body): never
+    {
+        $this->log('warning', sprintf('registration rejected from %s: %s; request: %s',
+            Uri::ip(), $description, mb_substr((string) preg_replace('/\s+/', ' ', $body), 0, 2000)));
+        $this->json(400, ['error' => $error, 'error_description' => $description]);
     }
 
     private function redirectUriAllowed(string $uri): bool

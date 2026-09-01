@@ -618,6 +618,8 @@ check(str_contains($securityLog, 'consent approved: user "alice"') && str_contai
 check(str_contains($securityLog, 'scopes "api.pages.read"'), 'a scoped approval logs the granted scopes');
 check(str_contains($securityLog, 'consent lockout'), 'crossing into lockout is logged');
 check(str_contains($securityLog, 'refresh token replay'), 'a replayed refresh token is logged as theft');
+check(str_contains($securityLog, 'registration rejected from') && str_contains($securityLog, 'https://evil.example/cb'), 'a rejected registration is logged with the offending redirect_uri');
+check(str_contains($securityLog, 'registration throttled'), 'a throttled registration is logged');
 
 // Cleanup.
 array_map('unlink', glob(FLOW_DATA_DIR . '/mcp-server/*') ?: []);
