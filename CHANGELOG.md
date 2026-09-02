@@ -1,3 +1,9 @@
+# v1.2.1
+## 2026-09-01
+
+1. [](#bugfix)
+    * OAuth throttle keys and log lines now see the real caller address on hosts where Grav's `Uri::ip()` reports `UNKNOWN` (it reads `getenv()`, which some SAPIs never populate), by falling back to `REMOTE_ADDR` the way the api plugin's audit trail does. Before, every caller shared one `UNKNOWN` bucket there: 10 registrations from anyone locked out every client's registration, and the per-IP consent-login lockout applied to everyone at once (issue #7). When no address is available at all, each request gets its own key instead of a shared bucket; the per-username lockout still applies.
+
 # v1.2.0
 ## 2026-09-01
 

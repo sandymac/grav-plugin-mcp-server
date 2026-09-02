@@ -165,10 +165,10 @@ if (($argv[1] ?? '') === '--child') {
     }
 
     $_SERVER['REQUEST_METHOD'] = $spec['method'];
+    // $_SERVER only, deliberately not putenv(): Grav's Uri::ip() reads getenv(),
+    // which some hosts never populate, so this exercises the $_SERVER fallback
+    // that keeps the per-IP throttles per IP there (issue #7).
     $_SERVER['REMOTE_ADDR'] = $spec['ip'] ?? '10.0.0.1';
-    // Grav's Uri::ip() reads getenv(), not $_SERVER — without this every child
-    // shares the fail-closed 'UNKNOWN' lockout bucket.
-    putenv('REMOTE_ADDR=' . $_SERVER['REMOTE_ADDR']);
     $_GET = $spec['get'] ?? [];
     $_POST = $spec['post'] ?? [];
 
