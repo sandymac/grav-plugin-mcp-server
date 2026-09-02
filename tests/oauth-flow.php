@@ -165,10 +165,10 @@ if (($argv[1] ?? '') === '--child') {
     }
 
     $_SERVER['REQUEST_METHOD'] = $spec['method'];
+    // $_SERVER only, deliberately not putenv(): Grav's Uri::ip() reads getenv(),
+    // which some hosts never populate, so this exercises the $_SERVER fallback
+    // that keeps the per-IP throttles per IP there (issue #7).
     $_SERVER['REMOTE_ADDR'] = $spec['ip'] ?? '10.0.0.1';
-    // Grav's Uri::ip() reads getenv(), not $_SERVER — without this every child
-    // shares the fail-closed 'UNKNOWN' lockout bucket.
-    putenv('REMOTE_ADDR=' . $_SERVER['REMOTE_ADDR']);
     $_GET = $spec['get'] ?? [];
     $_POST = $spec['post'] ?? [];
 
@@ -618,6 +618,8 @@ check(str_contains($securityLog, 'consent approved: user "alice"') && str_contai
 check(str_contains($securityLog, 'scopes "api.pages.read"'), 'a scoped approval logs the granted scopes');
 check(str_contains($securityLog, 'consent lockout'), 'crossing into lockout is logged');
 check(str_contains($securityLog, 'refresh token replay'), 'a replayed refresh token is logged as theft');
+check(str_contains($securityLog, 'registration rejected from') && str_contains($securityLog, 'https://evil.example/cb'), 'a rejected registration is logged with the offending redirect_uri');
+check(str_contains($securityLog, 'registration throttled'), 'a throttled registration is logged');
 
 // Cleanup.
 array_map('unlink', glob(FLOW_DATA_DIR . '/mcp-server/*') ?: []);

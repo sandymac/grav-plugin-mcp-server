@@ -26,6 +26,11 @@ oauth:
     - cursor.com
     - windsurf.com
     - chat.mistral.ai
+    # Gemini (Spark custom connected apps) registers all three at once, and a
+    # registration is refused if any listed redirect_uri is off the allowlist.
+    - oauth-redirect.googleusercontent.com
+    - oauth-redirect-sandbox.googleusercontent.com
+    - oauth-redirect-test.googleusercontent.com
 
 # Serve tools other plugins publish through grav-plugin-api's /mcp/tools
 # manifest endpoint (an mcp.yaml at the plugin root, or the onApiMcpTools

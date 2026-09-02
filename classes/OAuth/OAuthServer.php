@@ -54,6 +54,7 @@ class OAuthServer
         SVG;
 
     private readonly OAuthStore $store;
+    private ?string $clientIp = null;
 
     public function __construct(
         private readonly Grav $grav,
@@ -275,26 +276,28 @@ class OAuthServer
         // connectors register once per setup, only a flood ever sees the 429.
         // Counted on success only — rejected floods then cost no store writes,
         // and the age prune plus MAX_PENDING still bound the file.
-        $throttleKey = 'reg:' . Uri::ip();
+        $throttleKey = 'reg:' . $this->clientIp();
         if ($this->store->failureCount($throttleKey) >= self::MAX_REGISTRATIONS) {
+            $this->log('warning', sprintf('registration throttled: %d registrations from %s within %d minutes', self::MAX_REGISTRATIONS, $this->clientIp(), intdiv(self::LOCKOUT_TTL, 60)));
             $this->json(429, ['error' => 'too_many_requests', 'error_description' => 'Too many client registrations from this address. Try again later.']);
         }
 
-        $meta = json_decode((string) file_get_contents('php://input'), true);
+        $raw = (string) file_get_contents('php://input');
+        $meta = json_decode($raw, true);
         if (!is_array($meta)) {
-            $this->json(400, ['error' => 'invalid_client_metadata']);
+            $this->rejectRegistration('invalid_client_metadata', 'request body must be a JSON object', $raw);
         }
 
         $uris = $meta['redirect_uris'] ?? [];
         if (!is_array($uris) || $uris === []) {
-            $this->json(400, ['error' => 'invalid_redirect_uri', 'error_description' => 'redirect_uris is required']);
+            $this->rejectRegistration('invalid_redirect_uri', 'redirect_uris is required', $raw);
         }
         foreach ($uris as $uri) {
             if (!is_string($uri) || !$this->redirectUriAllowed($uri)) {
-                $this->json(400, [
-                    'error' => 'invalid_redirect_uri',
-                    'error_description' => 'redirect_uri must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts',
-                ]);
+                $this->rejectRegistration('invalid_redirect_uri', sprintf(
+                    'redirect_uri %s is not allowed: must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts',
+                    mb_substr((string) json_encode($uri, JSON_UNESCAPED_SLASHES), 0, 200)
+                ), $raw);
             }
         }
 
@@ -312,6 +315,19 @@ class OAuthServer
             'grant_types' => ['authorization_code', 'refresh_token'],
             'response_types' => ['code'],
         ]);
+    }
+
+    /**
+     * Refuse a registration and leave the request in the log. Hosted connectors
+     * (claude.ai, Gemini) show the user only a generic "rejected" message, so
+     * the site log is the one place the offending redirect_uri can be seen.
+     * The endpoint is public, so everything echoed is bounded first.
+     */
+    private function rejectRegistration(string $error, string $description, string $body): never
+    {
+        $this->log('warning', sprintf('registration rejected from %s: %s; request: %s',
+            $this->clientIp(), $description, (string) preg_replace('/\s+/', ' ', substr($body, 0, 2000))));
+        $this->json(400, ['error' => $error, 'error_description' => $description]);
     }
 
     private function redirectUriAllowed(string $uri): bool
@@ -415,12 +431,11 @@ class OAuthServer
 
         $login = trim((string) ($_POST['username'] ?? ''));
 
-        // Lockout keys: the client address (Uri::ip() honours the site's trusted
-        // proxy-header config; unknown IPs share one fail-closed 'UNKNOWN' bucket)
-        // and the attempted username, so neither rotating usernames nor rotating
-        // addresses resets the counter. The username is truncated so a hostile
-        // client can't bloat the store with mile-long names.
-        $throttleKeys = ['ip:' . Uri::ip()];
+        // Lockout keys: the client address and the attempted username, so neither
+        // rotating usernames nor rotating addresses resets the counter. The
+        // username is truncated so a hostile client can't bloat the store with
+        // mile-long names.
+        $throttleKeys = ['ip:' . $this->clientIp()];
         if ($login !== '') {
             $throttleKeys[] = 'user:' . mb_substr(mb_strtolower($login), 0, 64);
         }
@@ -490,7 +505,7 @@ class OAuthServer
             $granted === [] ? 'full account access' : 'scopes "' . implode(' ', $granted) . '"',
             (string) ($client['client_name'] ?? 'MCP client'),
             (string) (parse_url($params['redirect_uri'], PHP_URL_HOST) ?? ''),
-            Uri::ip(),
+            $this->clientIp(),
         ));
 
         $this->redirectBack($params, ['code' => $code]);
@@ -664,6 +679,30 @@ class OAuthServer
     // --- Helpers ---
 
     /**
+     * The caller's address, for throttle keys and log lines. Grav's Uri::ip()
+     * reads getenv(), which some SAPIs never populate with request vars (this is
+     * how the api plugin's audit trail sees real IPs on hosts where Uri::ip()
+     * reports UNKNOWN), so fall through to $_SERVER the way the api plugin does.
+     * Uri::ip() still goes first: it is what honours the site's opt-in trusted
+     * proxy-header config. With no address at all, a random per-request key
+     * keeps the per-IP counters from collapsing into one shared bucket that a
+     * single flood could lock everyone out of; the per-username key still holds.
+     */
+    private function clientIp(): string
+    {
+        if ($this->clientIp === null) {
+            $ip = Uri::ip();
+            if ($ip === 'UNKNOWN') {
+                $remote = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+                $ip = filter_var($remote, FILTER_VALIDATE_IP) ? $remote : 'unknown-' . bin2hex(random_bytes(8));
+            }
+            $this->clientIp = $ip;
+        }
+
+        return $this->clientIp;
+    }
+
+    /**
      * Security events into grav.log: a consent turning a password into a
      * 90-day key, a lockout, a replayed refresh token — the trail an admin
      * reads after a stolen password. Soft: bare-container tests have no log
@@ -684,7 +723,7 @@ class OAuthServer
             // === not >=: the count gate at the top of authorizeSubmit() blocks
             // further attempts, so each window crosses MAX_FAILURES exactly once.
             if ($this->store->failureCount($key) === self::MAX_FAILURES) {
-                $this->log('warning', sprintf('consent lockout: "%s" locked for %d minutes after %d failed logins (last from %s)', $key, intdiv(self::LOCKOUT_TTL, 60), self::MAX_FAILURES, Uri::ip()));
+                $this->log('warning', sprintf('consent lockout: "%s" locked for %d minutes after %d failed logins (last from %s)', $key, intdiv(self::LOCKOUT_TTL, 60), self::MAX_FAILURES, $this->clientIp()));
             }
         }
     }
