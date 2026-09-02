@@ -1,3 +1,9 @@
+# v1.2.1
+## 2026-09-02
+
+1. [](#improved)
+    * `grok.com` joins the default `oauth.allowed_redirect_hosts`, so Grok's connector can register without a config change (issue #10). Sites that already set the list in `user/config/plugins/mcp-server.yaml` override the default and need to add the host themselves.
+
 # v1.2.0
 ## 2026-09-01
 

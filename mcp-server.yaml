@@ -21,6 +21,7 @@ oauth:
     - claude.ai
     - claude.com
     - chatgpt.com
+    - grok.com
     - vscode.dev
     - cursor.com
     - windsurf.com
