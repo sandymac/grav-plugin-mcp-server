@@ -51,7 +51,7 @@ jobs:
       # install at .gravtest/grav-admin — recreate the local dev layout. Vendors are
       # for symbol scanning only, hence --ignore-platform-reqs.
       - run: |
-          git clone --depth 1 -b 2.0.19 https://github.com/getgrav/grav .gravtest/grav-admin
+          git clone --depth 1 -b 2.0.23 https://github.com/getgrav/grav .gravtest/grav-admin
           composer install -q -d .gravtest/grav-admin --no-dev --ignore-platform-reqs
           git clone --depth 1 -b "$(cat tests/api-plugin.pin)" https://github.com/getgrav/grav-plugin-api .gravtest/grav-admin/user/plugins/api
           composer install -q -d .gravtest/grav-admin/user/plugins/api --no-dev --ignore-platform-reqs
