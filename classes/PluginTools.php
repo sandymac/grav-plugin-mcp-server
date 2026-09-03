@@ -134,19 +134,25 @@ final class PluginTools
      * The manifest call convention: path placeholders come from the arguments
      * (URL-encoded), GET sends everything left as query, the other methods send
      * the properties named in `query` as query and the rest as the JSON body.
-     * Arguments the schema does not declare are dropped.
+     * Arguments the schema does not declare are dropped — unless the root
+     * schema says `additionalProperties: true` (the manifest's free-form body,
+     * e.g. fields a site's blueprint decides), in which case they ride along:
+     * GET as query, the other methods into the body.
      */
     private static function handler(array $tool): \Closure
     {
         $method = strtoupper($tool['method']);
         $properties = $tool['input_schema']['properties'] ?? [];
         $declared = array_keys(is_array($properties) ? $properties : (array) $properties);
+        $open = ($tool['input_schema']['additionalProperties'] ?? null) === true;
         $queryNames = array_values(array_filter((array) ($tool['query'] ?? []), 'is_string'));
         $pathParams = array_values(array_filter((array) ($tool['path_params'] ?? []), 'is_string'));
         $path = $tool['path'];
 
-        return static function (ApiBridge $api, array $args) use ($method, $declared, $queryNames, $pathParams, $path): array {
-            $args = ApiBridge::pick($args, $declared);
+        return static function (ApiBridge $api, array $args) use ($method, $declared, $open, $queryNames, $pathParams, $path): array {
+            if (!$open) {
+                $args = ApiBridge::pick($args, $declared);
+            }
 
             foreach ($pathParams as $name) {
                 if (!isset($args[$name]) || $args[$name] === '') {

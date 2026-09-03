@@ -161,6 +161,26 @@ $manifest = [
             'query' => ['force'],
         ],
         [
+            // Root additionalProperties: true — the body's field names are the
+            // caller's to choose (Flex-style blueprint fields).
+            'name' => 'demo_put_thing',
+            'plugin' => 'demo',
+            'title' => 'Replace a thing',
+            'description' => 'Replace a thing with whatever fields you like.',
+            'method' => 'PUT',
+            'path' => '/demo/things/{id}',
+            'permission' => 'demo.things.write',
+            'annotations' => ['readOnly' => false, 'destructive' => false, 'idempotent' => true],
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => ['id' => ['type' => 'integer'], 'dry_run' => ['type' => 'boolean']],
+                'required' => ['id'],
+                'additionalProperties' => true,
+            ],
+            'path_params' => ['id'],
+            'query' => ['dry_run'],
+        ],
+        [
             'name' => 'demo_ping',
             'plugin' => 'demo',
             'title' => null,
@@ -188,7 +208,7 @@ $manifest = [
             'query' => [],
         ],
     ],
-    'plugins' => [['slug' => 'demo', 'name' => 'Demo', 'version' => '0.1.0', 'tools' => 5]],
+    'plugins' => [['slug' => 'demo', 'name' => 'Demo', 'version' => '0.1.0', 'tools' => 6]],
     'warnings' => ['demo: tool \'upload\' skipped: unsupported schema keyword \'oneOf\''],
     'fingerprint' => '5f1d',
 ];
@@ -205,7 +225,7 @@ $core = count((new ToolRegistry(null))->list());
 
 // --- Merge and collisions ---------------------------------------------------
 
-check(count($descriptors) === $core + 4, 'four plugin tools join the core surface, got ' . (count($descriptors) - $core));
+check(count($descriptors) === $core + 5, 'five plugin tools join the core surface, got ' . (count($descriptors) - $core));
 check(!str_contains($descriptors['site_info']['description'], 'plugin: demo'), 'a plugin tool never displaces a core tool of the same name');
 check(count(array_filter($bridge->calls, static fn(array $c): bool => $c['path'] === '/mcp/tools')) === 1, 'tools/list fetches the manifest once');
 
@@ -241,6 +261,9 @@ check($lastCall($bridge)['query'] === [], 'a path param is not repeated in the q
 
 $registry->call('demo_update_thing', ['id' => 7, 'title' => 'T', 'force' => true, 'nope' => 1]);
 check($lastCall($bridge) === ['method' => 'PATCH', 'path' => '/demo/things/7', 'query' => ['force' => true], 'body' => ['title' => 'T']], 'PATCH splits query from body by the manifest query list');
+
+$registry->call('demo_put_thing', ['id' => 7, 'dry_run' => true, 'title' => 'T', 'color' => 'red']);
+check($lastCall($bridge) === ['method' => 'PUT', 'path' => '/demo/things/7', 'query' => ['dry_run' => true], 'body' => ['title' => 'T', 'color' => 'red']], 'additionalProperties: true passes undeclared arguments into the body, path and query still split out');
 
 $before = count($bridge->calls);
 $missing = $registry->call('demo_get_thing', []);
@@ -284,7 +307,7 @@ $discover = new FakeBridge();
 $discover->manifest = $manifest;
 $result = (Grav\Plugin\McpServer\Tools\PluginsTools::tools()['discover_plugins']['handler'])($discover, []);
 $reported = json_decode($result['content'][0]['text'], true);
-check($reported['mcp_tools'] === [['plugin' => 'demo', 'tools' => 5]], 'discover_plugins reports the per-plugin tool counts');
+check($reported['mcp_tools'] === [['plugin' => 'demo', 'tools' => 6]], 'discover_plugins reports the per-plugin tool counts');
 check($reported['mcp_tool_warnings'] === $manifest['warnings'], 'discover_plugins reports the manifest warnings');
 
 Grav\Common\Grav::$config = ['plugins.mcp-server.plugin_tools' => false];
