@@ -1,3 +1,13 @@
+# v1.2.5
+## 2026-09-04
+
+1. [](#new)
+    * Plugin tools whose manifest names a `body` envelope property (manifest version 2, [getgrav/grav-plugin-api#32](https://github.com/getgrav/grav-plugin-api/issues/32)) now send that one argument's value verbatim as the request body, so blueprint fields never share a namespace with path or query parameters ([#14](https://github.com/sandymac/grav-plugin-mcp-server/issues/14)). An older api plugin that never sends `body` degrades safely to the existing query/body split.
+1. [](#bugfix)
+    * An object- or array-typed argument routed to the query string is now JSON-encoded instead of arriving at the api route as the literal string "Array".
+1. [](#improved)
+    * Triaged against api plugin 1.0.24 and 1.0.25: no endpoint changes affect the tool surface (1.0.24 adds a GPM generation check on plugin install, 1.0.25 has `onApiPageUpdated` report the previous template), so the api floor stays at 1.0.22.
+
 # v1.2.4
 ## 2026-09-03
 

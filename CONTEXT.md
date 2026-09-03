@@ -15,6 +15,11 @@ mechanism (`mcp.yaml` at the plugin root, or the `onApiMcpTools` event), served 
 upstream contract (grav-mcp uses the same term), even for event-sourced entries that
 have no manifest file behind them.
 
+### Body designation
+The manifest's `body` key (manifest version 2) naming the one argument whose value is sent
+verbatim as the request body, so blueprint-defined fields never share a namespace with
+path or query parameters.
+
 ### Scope cap
 The `api.*` scope list carried by a minted API key, limiting it to a subset of the
 owning account's permissions. An **unscoped** key (empty list) is capped only by the
