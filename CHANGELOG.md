@@ -1,3 +1,9 @@
+# v1.2.4
+## 2026-09-03
+
+1. [](#bugfix)
+    * Plugin tools whose manifest input schema sets `additionalProperties: true` at the root now pass undeclared arguments through to the api route (GET as query, other methods into the JSON body) instead of silently dropping them. The api plugin's manifest spec allows the keyword there for free-form bodies such as blueprint-defined fields; before, such a tool validated and listed fine but every undeclared field vanished on the way to the route. Tools without the keyword are unchanged.
+
 # v1.2.3
 ## 2026-09-03
 
