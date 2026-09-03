@@ -1,6 +1,6 @@
 # grav-plugin-mcp-server
 
-A Grav CMS plugin (PHP 8.3+, matching Grav 2 core; Grav 2.0.17+) that serves an MCP endpoint over Streamable HTTP from the site itself. See DECISIONS.md for architecture decisions and settled non-decisions; README.md for usage.
+A Grav CMS plugin (PHP 8.3+, matching Grav 2 core; Grav 2.0.23+) that serves an MCP endpoint over Streamable HTTP from the site itself. See DECISIONS.md for architecture decisions and settled non-decisions; README.md for usage.
 
 ## Layout
 

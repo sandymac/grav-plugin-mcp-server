@@ -1,3 +1,10 @@
+# v1.2.3
+## 2026-09-03
+
+1. [](#improved)
+    * Requires Grav 2.0.23+, the release whose `Uri::ip()` reads the caller address from `$_SERVER` (getgrav/grav#4275). The plugin's own `$_SERVER` fallback for OAuth throttle keys and log lines is gone with it (issue #9); an address Grav cannot validate still gets a random per-request key rather than a shared bucket.
+    * Triaged against api plugin 1.0.23: no endpoint changes affect the tool surface (its additions are the plugin `settings_route` field, an admin font choice, Page Statistics user-agent exclusions, and media events), so the api floor stays at 1.0.22.
+
 # v1.2.2
 ## 2026-09-02
 

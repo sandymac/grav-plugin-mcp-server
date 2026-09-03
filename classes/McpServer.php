@@ -18,7 +18,7 @@ use Grav\Common\Grav;
 class McpServer
 {
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
-    public const string VERSION = '1.2.2';
+    public const string VERSION = '1.2.3';
 
     /**
      * The commit a release zip was built from — git archive substitutes it

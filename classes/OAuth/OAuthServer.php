@@ -679,24 +679,18 @@ class OAuthServer
     // --- Helpers ---
 
     /**
-     * The caller's address, for throttle keys and log lines. Grav's Uri::ip()
-     * reads getenv(), which some SAPIs never populate with request vars (this is
-     * how the api plugin's audit trail sees real IPs on hosts where Uri::ip()
-     * reports UNKNOWN), so fall through to $_SERVER the way the api plugin does.
-     * Uri::ip() still goes first: it is what honours the site's opt-in trusted
-     * proxy-header config. With no address at all, a random per-request key
-     * keeps the per-IP counters from collapsing into one shared bucket that a
-     * single flood could lock everyone out of; the per-username key still holds.
+     * The caller's address, for throttle keys and log lines. Uri::ip() honours
+     * the site's opt-in trusted proxy-header config and validates what it
+     * returns; with no usable address at all (CLI, an invalid REMOTE_ADDR) a
+     * random per-request key keeps the per-IP counters from collapsing into one
+     * shared bucket that a single flood could lock everyone out of; the
+     * per-username key still holds.
      */
     private function clientIp(): string
     {
         if ($this->clientIp === null) {
             $ip = Uri::ip();
-            if ($ip === 'UNKNOWN') {
-                $remote = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-                $ip = filter_var($remote, FILTER_VALIDATE_IP) ? $remote : 'unknown-' . bin2hex(random_bytes(8));
-            }
-            $this->clientIp = $ip;
+            $this->clientIp = filter_var($ip, FILTER_VALIDATE_IP) ? $ip : 'unknown-' . bin2hex(random_bytes(8));
         }
 
         return $this->clientIp;
