@@ -39,7 +39,14 @@ read its rationale first — most were validated against a live deployment.
    Grav permissions, which the api plugin already enforces — no mechanism of ours.
    Dispatch semantics (path substitution, query/body split, annotation mapping,
    description composition) follow grav-mcp's `docs/plugin-tools-spec.md` so plugin
-   authors see one behavior across both servers.
+   authors see one behavior across both servers. A manifest may name a `body`
+   envelope property (manifest version 2, getgrav/grav-plugin-api#32 option A): dispatch
+   reads it and sends that one argument's value verbatim as the request body, nothing
+   else; an older api plugin that never sends `body` degrades safely to the existing
+   query/body split, so the api floor does not move. Query-string values are
+   JSON-encoded when the argument is an object or array, matching grav-mcp's
+   `toQueryValue` — otherwise `ApiBridge::request()`'s `(string)` cast would send the
+   literal string "Array".
 6. **A key's scope list is the whole story: empty = full account access, non-empty =
    deliberate cap** (2026-09-01): a limit-nothing consent (no scope, `*`, or the whole
    advertised vocabulary — claude.ai's default) mints an *unscoped* key, so "full

@@ -194,6 +194,47 @@ $manifest = [
             'query' => [],
         ],
         [
+            // manifest v2: `body` names the one envelope property; `type`/`key`
+            // are path params, `lang` is query — none of them share a namespace
+            // with fields inside the envelope (Flex-style blueprint fields).
+            'name' => 'flex_update_object',
+            'plugin' => 'flex-objects',
+            'title' => 'Update a flex object',
+            'description' => 'Update a flex object.',
+            'method' => 'PATCH',
+            'path' => '/flex-objects/{type}/{key}',
+            'permission' => 'demo.things.write',
+            'annotations' => ['readOnly' => false, 'destructive' => false, 'idempotent' => true],
+            'input_schema' => [
+                'type' => 'object',
+                'required' => ['type', 'key', 'object'],
+                'properties' => [
+                    'type' => ['type' => 'string'],
+                    'key' => ['type' => 'string'],
+                    'lang' => ['type' => 'string'],
+                    'object' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Fields per the directory blueprint'],
+                ],
+            ],
+            'path_params' => ['type', 'key'],
+            'query' => ['lang'],
+            'body' => 'object',
+        ],
+        [
+            // A GET tool with an object-typed argument: an array value must be
+            // JSON-encoded in the query, not cast to the literal string "Array".
+            'name' => 'demo_search_things',
+            'plugin' => 'demo',
+            'title' => null,
+            'description' => 'Search things by filter.',
+            'method' => 'GET',
+            'path' => '/demo/search',
+            'permission' => 'demo.things.read',
+            'annotations' => ['readOnly' => true, 'destructive' => false, 'idempotent' => true],
+            'input_schema' => ['type' => 'object', 'properties' => ['filters' => ['type' => 'object']]],
+            'path_params' => [],
+            'query' => [],
+        ],
+        [
             // A core tool owns this name; the plugin entry must lose.
             'name' => 'site_info',
             'plugin' => 'demo',
@@ -225,7 +266,7 @@ $core = count((new ToolRegistry(null))->list());
 
 // --- Merge and collisions ---------------------------------------------------
 
-check(count($descriptors) === $core + 5, 'five plugin tools join the core surface, got ' . (count($descriptors) - $core));
+check(count($descriptors) === $core + 7, 'seven plugin tools join the core surface, got ' . (count($descriptors) - $core));
 check(!str_contains($descriptors['site_info']['description'], 'plugin: demo'), 'a plugin tool never displaces a core tool of the same name');
 check(count(array_filter($bridge->calls, static fn(array $c): bool => $c['path'] === '/mcp/tools')) === 1, 'tools/list fetches the manifest once');
 
@@ -272,6 +313,29 @@ check(count($bridge->calls) === $before, 'the missing-param error never reaches 
 
 $registry->call('demo_ping', ['whatever' => 1]);
 check($lastCall($bridge) === ['method' => 'POST', 'path' => '/demo/ping', 'query' => [], 'body' => null], 'a body-less POST sends no body');
+
+// --- body envelope (manifest v2) ---------------------------------------------
+
+$registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'lang' => 'en', 'object' => ['type' => 'article', 'title' => 'T'], 'bogus' => 'drop me']);
+check($lastCall($bridge) === [
+    'method' => 'PATCH',
+    'path' => '/flex-objects/page/home',
+    'query' => ['lang' => 'en'],
+    'body' => ['type' => 'article', 'title' => 'T'],
+], 'the body envelope is sent verbatim, including a `type` key that survives alongside the `type` path param, got: ' . json_encode($lastCall($bridge)));
+
+$registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'lang' => 'en']);
+check($lastCall($bridge)['body'] === null, 'an omitted envelope sends no body');
+
+$before = count($bridge->calls);
+$missingPath = $registry->call('flex_update_object', ['key' => 'home', 'object' => ['title' => 'T']]);
+check($missingPath['isError'] === true && str_contains($missingPath['content'][0]['text'], 'Missing required parameter: type'), 'a missing path param is still the normal error with a body envelope declared');
+check(count($bridge->calls) === $before, 'the missing-param error never reaches the API');
+
+// --- array-valued query arguments ---------------------------------------------
+
+$registry->call('demo_search_things', ['filters' => ['type' => 'article', 'tags' => ['a', 'b']]]);
+check($lastCall($bridge) === ['method' => 'GET', 'path' => '/demo/search', 'query' => ['filters' => '{"type":"article","tags":["a","b"]}'], 'body' => null], 'an object-typed query argument is JSON-encoded, not cast to the string "Array", got: ' . json_encode($lastCall($bridge)));
 
 // --- Scope cap --------------------------------------------------------------
 

@@ -137,7 +137,12 @@ final class PluginTools
      * Arguments the schema does not declare are dropped — unless the root
      * schema says `additionalProperties: true` (the manifest's free-form body,
      * e.g. fields a site's blueprint decides), in which case they ride along:
-     * GET as query, the other methods into the body.
+     * GET as query, the other methods into the body. When the manifest names a
+     * `body` envelope property (manifest v2), that argument's value alone is
+     * sent verbatim as the JSON body and everything else is path or query —
+     * blueprint fields never share a namespace with them. Object/array values
+     * routed to the query string are JSON-encoded first, or ApiBridge::request()
+     * would cast them to the literal string "Array".
      */
     private static function handler(array $tool): \Closure
     {
@@ -147,9 +152,10 @@ final class PluginTools
         $open = ($tool['input_schema']['additionalProperties'] ?? null) === true;
         $queryNames = array_values(array_filter((array) ($tool['query'] ?? []), 'is_string'));
         $pathParams = array_values(array_filter((array) ($tool['path_params'] ?? []), 'is_string'));
+        $bodyName = is_string($tool['body'] ?? null) && $tool['body'] !== '' ? $tool['body'] : null;
         $path = $tool['path'];
 
-        return static function (ApiBridge $api, array $args) use ($method, $declared, $open, $queryNames, $pathParams, $path): array {
+        return static function (ApiBridge $api, array $args) use ($method, $declared, $open, $queryNames, $pathParams, $bodyName, $path): array {
             if (!$open) {
                 $args = ApiBridge::pick($args, $declared);
             }
@@ -162,12 +168,25 @@ final class PluginTools
                 unset($args[$name]);
             }
 
+            $jsonify = static fn(array $a): array => array_map(
+                static fn($v) => is_array($v) ? json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : $v,
+                $a
+            );
+
             if ($method === 'GET') {
-                return ApiBridge::fromResponse($api->request($method, $path, $args));
+                return ApiBridge::fromResponse($api->request($method, $path, $jsonify($args)));
             }
 
-            $query = ApiBridge::pick($args, $queryNames);
-            $body = array_diff_key($args, $query);
+            $queryArgs = ApiBridge::pick($args, $queryNames);
+            $query = $jsonify($queryArgs);
+
+            if ($bodyName !== null) {
+                $body = isset($args[$bodyName]) && is_array($args[$bodyName]) ? $args[$bodyName] : null;
+
+                return ApiBridge::fromResponse($api->request($method, $path, $query, $body));
+            }
+
+            $body = array_diff_key($args, $queryArgs);
 
             return ApiBridge::fromResponse($api->request($method, $path, $query, $body === [] ? null : $body));
         };
