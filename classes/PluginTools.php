@@ -154,9 +154,10 @@ final class PluginTools
         $pathParams = array_values(array_filter((array) ($tool['path_params'] ?? []), 'is_string'));
         $bodyName = is_string($tool['body'] ?? null) && $tool['body'] !== '' ? $tool['body'] : null;
         $bodyRequired = $bodyName !== null && in_array($bodyName, (array) ($tool['input_schema']['required'] ?? []), true);
-        $path = $tool['path'];
+        $template = $tool['path'];
 
-        return static function (ApiBridge $api, array $args) use ($method, $declared, $open, $queryNames, $pathParams, $bodyName, $bodyRequired, $path): array {
+        return static function (ApiBridge $api, array $args) use ($method, $declared, $open, $queryNames, $pathParams, $bodyName, $bodyRequired, $template): array {
+            $path = $template;
             if (!$open) {
                 $args = ApiBridge::pick($args, $declared);
             }
@@ -192,7 +193,8 @@ final class PluginTools
                 if ($envelope === null && $bodyRequired) {
                     return ApiBridge::toolError(sprintf('Missing required parameter: %s', $bodyName));
                 }
-                if ($envelope !== null && !is_array($envelope)) {
+                // A JSON list decodes to a PHP array too; only a map (or {}) is an object.
+                if ($envelope !== null && (!is_array($envelope) || ($envelope !== [] && array_is_list($envelope)))) {
                     return ApiBridge::toolError(sprintf('Parameter %s must be an object', $bodyName));
                 }
 

@@ -344,7 +344,12 @@ $noEnvelope = $registry->call('flex_update_object', ['type' => 'page', 'key' => 
 check($noEnvelope['isError'] === true && str_contains($noEnvelope['content'][0]['text'], 'Missing required parameter: object'), 'a required envelope that is missing is an error, not an empty body');
 $notObject = $registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'object' => 'oops']);
 check($notObject['isError'] === true && str_contains($notObject['content'][0]['text'], 'Parameter object must be an object'), 'an envelope that is not an object is an error');
+$listEnvelope = $registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'object' => [1, 2]]);
+check($listEnvelope['isError'] === true && str_contains($listEnvelope['content'][0]['text'], 'Parameter object must be an object'), 'a JSON list is not an object envelope either');
 check(count($bridge->calls) === $before, 'envelope errors never reach the API');
+
+$registry->call('flex_update_object', ['type' => 'page', 'key' => 'other', 'object' => []]);
+check($lastCall($bridge)['path'] === '/flex-objects/page/other' && $lastCall($bridge)['body'] === [], 'a second call rebuilds the path from the template, and an empty object is a valid envelope');
 
 $registry->call('demo_post_thing', []);
 check($lastCall($bridge) === ['method' => 'POST', 'path' => '/demo/things', 'query' => [], 'body' => null], 'an omitted envelope the schema does not require sends no body');
