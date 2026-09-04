@@ -220,6 +220,21 @@ $manifest = [
             'body' => 'object',
         ],
         [
+            // An envelope the schema does not require: omitting it sends no body.
+            'name' => 'demo_post_thing',
+            'plugin' => 'demo',
+            'title' => null,
+            'description' => 'Post a thing.',
+            'method' => 'POST',
+            'path' => '/demo/things',
+            'permission' => null,
+            'annotations' => ['readOnly' => false, 'destructive' => false, 'idempotent' => false],
+            'input_schema' => ['type' => 'object', 'properties' => ['thing' => ['type' => 'object', 'additionalProperties' => true]]],
+            'path_params' => [],
+            'query' => [],
+            'body' => 'thing',
+        ],
+        [
             // A GET tool with an object-typed argument: an array value must be
             // JSON-encoded in the query, not cast to the literal string "Array".
             'name' => 'demo_search_things',
@@ -266,7 +281,7 @@ $core = count((new ToolRegistry(null))->list());
 
 // --- Merge and collisions ---------------------------------------------------
 
-check(count($descriptors) === $core + 7, 'seven plugin tools join the core surface, got ' . (count($descriptors) - $core));
+check(count($descriptors) === $core + 8, 'eight plugin tools join the core surface, got ' . (count($descriptors) - $core));
 check(!str_contains($descriptors['site_info']['description'], 'plugin: demo'), 'a plugin tool never displaces a core tool of the same name');
 check(count(array_filter($bridge->calls, static fn(array $c): bool => $c['path'] === '/mcp/tools')) === 1, 'tools/list fetches the manifest once');
 
@@ -324,8 +339,20 @@ check($lastCall($bridge) === [
     'body' => ['type' => 'article', 'title' => 'T'],
 ], 'the body envelope is sent verbatim, including a `type` key that survives alongside the `type` path param, got: ' . json_encode($lastCall($bridge)));
 
-$registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'lang' => 'en']);
-check($lastCall($bridge)['body'] === null, 'an omitted envelope sends no body');
+$before = count($bridge->calls);
+$noEnvelope = $registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'lang' => 'en']);
+check($noEnvelope['isError'] === true && str_contains($noEnvelope['content'][0]['text'], 'Missing required parameter: object'), 'a required envelope that is missing is an error, not an empty body');
+$notObject = $registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'object' => 'oops']);
+check($notObject['isError'] === true && str_contains($notObject['content'][0]['text'], 'Parameter object must be an object'), 'an envelope that is not an object is an error');
+$listEnvelope = $registry->call('flex_update_object', ['type' => 'page', 'key' => 'home', 'object' => [1, 2]]);
+check($listEnvelope['isError'] === true && str_contains($listEnvelope['content'][0]['text'], 'Parameter object must be an object'), 'a JSON list is not an object envelope either');
+check(count($bridge->calls) === $before, 'envelope errors never reach the API');
+
+$registry->call('flex_update_object', ['type' => 'page', 'key' => 'other', 'object' => []]);
+check($lastCall($bridge)['path'] === '/flex-objects/page/other' && $lastCall($bridge)['body'] === [], 'a second call rebuilds the path from the template, and an empty object is a valid envelope');
+
+$registry->call('demo_post_thing', []);
+check($lastCall($bridge) === ['method' => 'POST', 'path' => '/demo/things', 'query' => [], 'body' => null], 'an omitted envelope the schema does not require sends no body');
 
 $before = count($bridge->calls);
 $missingPath = $registry->call('flex_update_object', ['key' => 'home', 'object' => ['title' => 'T']]);
@@ -363,6 +390,11 @@ $offRegistry = new FakeRegistry($off);
 $offRegistry->configure('grav_test', []);
 check(count($offRegistry->list()) === $core, 'plugin_tools: false serves core tools only');
 check($off->calls === [], 'plugin_tools: false never fetches the manifest');
+
+$before = count($bridge->calls);
+$badUtf8 = $registry->call('demo_search_things', ['filters' => ['q' => chr(0xB1) . '1']]);
+check($badUtf8['isError'] === true && str_contains($badUtf8['content'][0]['text'], 'could not be JSON-encoded'), 'a query argument that will not JSON-encode is an error, not the string "false"');
+check(count($bridge->calls) === $before, 'the encoding error never reaches the API');
 
 // --- discover_plugins -------------------------------------------------------
 
