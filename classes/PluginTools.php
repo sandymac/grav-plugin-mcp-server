@@ -153,9 +153,10 @@ final class PluginTools
         $queryNames = array_values(array_filter((array) ($tool['query'] ?? []), 'is_string'));
         $pathParams = array_values(array_filter((array) ($tool['path_params'] ?? []), 'is_string'));
         $bodyName = is_string($tool['body'] ?? null) && $tool['body'] !== '' ? $tool['body'] : null;
+        $bodyRequired = $bodyName !== null && in_array($bodyName, (array) ($tool['input_schema']['required'] ?? []), true);
         $path = $tool['path'];
 
-        return static function (ApiBridge $api, array $args) use ($method, $declared, $open, $queryNames, $pathParams, $bodyName, $path): array {
+        return static function (ApiBridge $api, array $args) use ($method, $declared, $open, $queryNames, $pathParams, $bodyName, $bodyRequired, $path): array {
             if (!$open) {
                 $args = ApiBridge::pick($args, $declared);
             }
@@ -168,22 +169,34 @@ final class PluginTools
                 unset($args[$name]);
             }
 
+            // Throw rather than send "false": an argument that will not encode is
+            // a caller error, reported before anything reaches the api.
             $jsonify = static fn(array $a): array => array_map(
-                static fn($v) => is_array($v) ? json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : $v,
+                static fn($v) => is_array($v) ? json_encode($v, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : $v,
                 $a
             );
 
-            if ($method === 'GET') {
-                return ApiBridge::fromResponse($api->request($method, $path, $jsonify($args)));
+            $queryArgs = $method === 'GET' ? $args : ApiBridge::pick($args, $queryNames);
+            try {
+                $query = $jsonify($queryArgs);
+            } catch (\JsonException $e) {
+                return ApiBridge::toolError('A query argument could not be JSON-encoded: ' . $e->getMessage());
             }
 
-            $queryArgs = ApiBridge::pick($args, $queryNames);
-            $query = $jsonify($queryArgs);
+            if ($method === 'GET') {
+                return ApiBridge::fromResponse($api->request($method, $path, $query));
+            }
 
             if ($bodyName !== null) {
-                $body = isset($args[$bodyName]) && is_array($args[$bodyName]) ? $args[$bodyName] : null;
+                $envelope = $args[$bodyName] ?? null;
+                if ($envelope === null && $bodyRequired) {
+                    return ApiBridge::toolError(sprintf('Missing required parameter: %s', $bodyName));
+                }
+                if ($envelope !== null && !is_array($envelope)) {
+                    return ApiBridge::toolError(sprintf('Parameter %s must be an object', $bodyName));
+                }
 
-                return ApiBridge::fromResponse($api->request($method, $path, $query, $body));
+                return ApiBridge::fromResponse($api->request($method, $path, $query, $envelope));
             }
 
             $body = array_diff_key($args, $queryArgs);

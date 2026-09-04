@@ -1,5 +1,12 @@
+# v1.2.6
+## 2026-09-03
+
+1. [](#bugfix)
+    * A plugin tool whose manifest requires its `body` envelope now refuses a call that omits it, or passes something other than an object, before anything reaches the api, instead of sending a request with no body. An envelope the manifest leaves optional still sends no body when omitted, matching grav-mcp.
+    * A query argument that cannot be JSON-encoded (invalid UTF-8) is reported as a tool error instead of being sent as the string "false".
+
 # v1.2.5
-## 2026-09-04
+## 2026-09-03
 
 1. [](#new)
     * Plugin tools whose manifest names a `body` envelope property (manifest version 2, [getgrav/grav-plugin-api#32](https://github.com/getgrav/grav-plugin-api/issues/32)) now send that one argument's value verbatim as the request body, so blueprint fields never share a namespace with path or query parameters ([#14](https://github.com/sandymac/grav-plugin-mcp-server/issues/14)). An older api plugin that never sends `body` degrades safely to the existing query/body split.
