@@ -104,7 +104,10 @@ Other installed plugins can publish their own REST routes as MCP tools — an `m
 manifest at the plugin root, or the `onApiMcpTools` event — served by the API plugin's
 `GET /mcp/tools` and offered here alongside the built-in tools. If you're authoring a
 plugin, follow the manifest reference in grav-plugin-api's README ("MCP tool manifests"
-section): https://github.com/getgrav/grav-plugin-api.
+section): https://github.com/getgrav/grav-plugin-api. A manifest that names a `body`
+argument (manifest version 2, as Flex Objects 1.4.13 ships for its `flex_*` tools) is only
+served by API plugin 1.0.28 or later; an older API plugin skips the whole manifest with a
+warning, so those tools do not appear until the API plugin is updated.
 
 Controlled by the `plugin_tools` config toggle (on by default; set to `false` to serve
 only the built-in tools). Like every tool here, visibility follows the caller's own Grav
