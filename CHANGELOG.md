@@ -1,3 +1,10 @@
+# v1.2.7
+## 2026-09-09
+
+1. [](#improved)
+    * Triaged against api plugin 1.0.26, 1.0.27 and 1.0.28: no endpoint changes affect the tool surface. 1.0.26 adds a `settings_page` key to plugin listings, which `get_packages` already passes through; 1.0.27 fixes secret masking when a plugin's settings are saved; 1.0.28 ships the manifest version 2 `body` key ([getgrav/grav-plugin-api#32](https://github.com/getgrav/grav-plugin-api/issues/32)) that this plugin has read since 1.2.5. The api floor stays at 1.0.22.
+    * README: a manifest that names a `body` argument (version 2, as Flex Objects 1.4.13 ships) is only served by api plugin 1.0.28 or later; an older api plugin skips the whole manifest with a warning, so those tools do not appear until the api plugin is updated.
+
 # v1.2.6
 ## 2026-09-03
 
