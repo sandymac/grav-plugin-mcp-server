@@ -790,7 +790,7 @@ class OAuthServer
                 ? '<p>Approving grants access <strong>limited to the permissions ticked below</strong> — you unticked some of what the client asked for, so tools that plugins add later are excluded too.</p>'
                 : '<p>Approving grants <strong>full account access</strong> — '
                     . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
-                    . ' The connection can do anything this account can, <strong>including tools that plugins add later</strong>.</p>';
+                    . ' The connection can do anything this account can, <strong>including tools that plugins add later</strong> — unless you tick the limit box below, which freezes it to the permissions listed.</p>';
             // The expansion is the advertised vocabulary, collapsed by default:
             // the point of this branch is that the list is not a limitation,
             // so it's there for the curious, not in everyone's way. Titled as a
