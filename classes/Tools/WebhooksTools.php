@@ -20,12 +20,12 @@ final class WebhooksTools
                 'descriptor' => [
                     'name' => 'get_webhooks',
                     'title' => 'Get Webhooks',
-                    'description' => 'List all configured webhooks with their URLs, events, active status, and failure count, or view the delivery log for one webhook, showing each attempt with status code, success, response time, and timestamp. [Requires: api.webhooks.read]',
+                    'description' => 'List all configured webhooks with their URLs, events, active status, and failure count; get one webhook\'s full configuration when "webhook_id" is given with the list view; or view the delivery log for one webhook, showing each attempt with status code, success, response time, and timestamp. [Requires: api.webhooks.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
                             'view' => ['type' => 'string', 'enum' => ['list', 'deliveries'], 'description' => 'What to retrieve (default: list)'],
-                            'webhook_id' => ['type' => 'string', 'description' => 'Webhook ID (required for deliveries view)'],
+                            'webhook_id' => ['type' => 'string', 'description' => 'Webhook ID: narrows the list view to that one webhook; required for the deliveries view'],
                             'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1, deliveries view only)'],
                             'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Items per page (default: 50, deliveries view only)'],
                         ],
@@ -37,7 +37,7 @@ final class WebhooksTools
                     $webhookId = isset($args['webhook_id']) ? (string) $args['webhook_id'] : '';
 
                     return match ($args['view'] ?? 'list') {
-                        'list' => ApiBridge::fromResponse($api->request('GET', '/webhooks')),
+                        'list' => ApiBridge::fromResponse($api->request('GET', $webhookId === '' ? '/webhooks' : '/webhooks/' . rawurlencode($webhookId))),
                         'deliveries' => $webhookId === ''
                             ? ApiBridge::toolJson(['error' => 'webhook_id is required for deliveries view'])
                             : ApiBridge::fromResponse($api->request(
