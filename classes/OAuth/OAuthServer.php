@@ -787,10 +787,10 @@ class OAuthServer
             $supported = self::supportedScopes();
             $narrowed = $ticked !== null && count(array_intersect($supported, $ticked)) < count($supported);
             $grants = $narrowed
-                ? '<p>Approving grants access <strong>limited to the permissions ticked below</strong> — you unticked some of what the client asked for, so tools that plugins add later are excluded too.</p>'
+                ? '<p>Approving grants access <strong>limited to the permissions ticked below</strong> — you unticked some of what the client asked for, so tools published by plugins — installed now or added later — are excluded too, because their permissions are not in this list.</p>'
                 : '<p>Approving grants <strong>full account access</strong> — '
                     . ($scopes === [] ? 'the client did not request any limiting scopes.' : 'the client requested every available scope, so the request limits nothing.')
-                    . ' The connection can do anything this account can, <strong>including tools that plugins add later</strong> — unless you tick the limit box below, which freezes it to the permissions listed.</p>';
+                    . ' The connection can do anything this account can, <strong>including tools that plugins add later</strong> — unless you tick the limit box below, which freezes it to the permissions listed and so excludes plugin-published tools, present or future.</p>';
             // The expansion is the advertised vocabulary, collapsed by default:
             // the point of this branch is that the list is not a limitation,
             // so it's there for the curious, not in everyone's way. Titled as a
@@ -804,7 +804,7 @@ class OAuthServer
                 // Opt-out, so the default keeps working as tools appear.
                 $limitOption = '<label class="limit"><input type="checkbox" name="limit_scopes" value="1"'
                     . (isset($_POST['limit_scopes']) ? ' checked' : '')
-                    . '> Limit this connection to only the permissions ticked above (tools added by future plugin updates will be excluded)</label>';
+                    . '> Limit this connection to only the permissions ticked above. Tools published by plugins — installed now or added later — need permissions this list does not offer, so they will be excluded.</label>';
             }
         } else {
             $grants = '<p>Approving grants access limited to:</p><ul class="scopes">'
