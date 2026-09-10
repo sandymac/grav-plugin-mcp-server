@@ -92,6 +92,7 @@ check($scoped->hiddenCause('list_pages') === null && $scoped->hiddenCause('no_su
 $access = $scoped->toolAccess();
 check(
     $access['visible'] + $access['hidden'] === 63
+    && $access['core_tools'] === 63 && $access['plugin_tools'] === 0 // no Grav here, so no manifest
     && $access['key_scopes'] === ['api.pages.read']
     && in_array('manage_users', $access['hidden_by_key_scope']['api.users.write'] ?? [], true)
     && $access['hidden_by_account_permission'] === []
