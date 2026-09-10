@@ -153,9 +153,12 @@ foreach ($promptsList['result']['prompts'] as $p) {
         $args[$arg['name']] = 'x';
     }
     $text = $server->dispatch(['jsonrpc' => '2.0', 'id' => 14, 'method' => 'prompts/get', 'params' => ['name' => $p['name'], 'arguments' => $args]])['result']['messages'][0]['content']['text'] ?? '';
-    preg_match_all('/\bUse ([a-z_]+)\b/', $text, $m);
+    check($text !== '', sprintf('prompt %s renders', $p['name']));
+    // "Use <tool>" / "use <tool>": the underscore requirement keeps "use ETags"
+    // and "use the" out; tool names are snake_case, so it costs nothing.
+    preg_match_all('/\buse ([a-z]+(?:_[a-z]+)+)\b/i', $text, $m);
     $unknown = array_diff(array_unique($m[1]), $toolNames);
-    check($unknown === [], sprintf('prompt %s names only existing tools (unknown: %s)', $p['name'], implode(', ', $unknown)));
+    check($m[1] !== [] && $unknown === [], sprintf('prompt %s names only existing tools (unknown: %s)', $p['name'], implode(', ', $unknown)));
 }
 
 $promptGet = $server->dispatch(['jsonrpc' => '2.0', 'id' => 11, 'method' => 'prompts/get', 'params' => ['name' => 'create_blog_post', 'arguments' => ['topic' => 'X']]]);

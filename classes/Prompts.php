@@ -168,9 +168,9 @@ Steps:
 1. Use get_translations with view="machine_translation" to see whether machine translation is available (it needs the ai-translate plugin installed, enabled and configured). If it is not, write the translations yourself in step 4.
 2. Use get_translations with view="coverage" to see how many {$targetLang} strings are missing
 3. Use search_translation_keys with status="missing", langs=["{$targetLang}"]{$nsFilter}, per_page=200 to list the untranslated keys, paging until done
-4. For each page of keys, use machine_translate with target_lang="{$targetLang}" and the keys (max 200 per call). It writes nothing — it returns one proposal per key. Review each: keep the ones with ok=true, and translate by hand those whose reason is no_source, icu_needs_human or placeholders_mangled (keep every {placeholder} and ICU plural form intact)
-5. Commit the reviewed translations with manage_translation_overrides action="set", lang="{$targetLang}", set={key: value}. Keys are flat dotted strings like "PLUGIN_ADMIN.SAVE"; a value equal to the shipped translation is dropped and reported as reverted
-6. Re-run get_translations view="coverage" to confirm the missing count dropped
+4. For each page of keys, use machine_translate with target_lang="{$targetLang}" and keys=[...] (max 200 per call). It writes nothing — it returns one proposal per key. Review each: keep the ones with ok=true, and translate by hand those whose reason is no_source, icu_needs_human or placeholders_mangled (keep every {placeholder} and ICU plural form intact)
+5. Use manage_translation_overrides with action="set", lang="{$targetLang}" and set={key: value} to commit the reviewed translations. Keys are flat dotted strings like "PLUGIN_ADMIN.SAVE"; a value equal to the shipped translation is dropped and reported as reverted
+6. Use get_translations with view="coverage" again to confirm the missing count dropped
 
 Report: how many strings were translated, which were left for a human and why, and anything that looked wrong in the source text.
 TXT;
