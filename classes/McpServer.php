@@ -132,7 +132,7 @@ class McpServer
                 'prompts' => ['listChanged' => false],
             ],
             'serverInfo' => ['name' => 'grav-plugin-mcp-server', 'version' => self::VERSION],
-            'instructions' => 'The tool list is filtered to this account\'s permissions.'
+            'instructions' => 'The tool list is filtered to this key\'s scopes and this account\'s permissions.'
                 . ($access['hidden'] > 0 ? sprintf(' %d more tool%s exist behind permissions this key or account lacks.', $access['hidden'], $access['hidden'] === 1 ? '' : 's') : '')
                 . ' Call whoami for the account\'s grants, the key\'s scopes, and what would unlock each hidden tool.',
         ]);
