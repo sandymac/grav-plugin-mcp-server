@@ -86,13 +86,21 @@ $scoped->configure(null, ['api.pages.read']);
 check($scoped->missingPermission('manage_users') === 'api.users.write', 'missingPermission names the gate of a hidden tool');
 check($scoped->missingPermission('list_pages') === null, 'missingPermission is null for a visible tool');
 check($scoped->missingPermission('no_such_tool') === null, 'missingPermission is null for an unknown tool');
+// No account here, so the only gate that can hide a tool is the key's scope list.
+check($scoped->hiddenCause('manage_users') === 'key_scope', 'hiddenCause names the key scope as the gate');
+check($scoped->hiddenCause('list_pages') === null && $scoped->hiddenCause('no_such_tool') === null, 'hiddenCause is null for visible and unknown tools');
 $access = $scoped->toolAccess();
 check(
     $access['visible'] + $access['hidden'] === 63
-    && in_array('manage_users', $access['hidden_by_missing_permission']['api.users.write'] ?? [], true),
-    'toolAccess partitions the surface and groups hidden tools by permission'
+    && $access['key_scopes'] === ['api.pages.read']
+    && in_array('manage_users', $access['hidden_by_key_scope']['api.users.write'] ?? [], true)
+    && $access['hidden_by_account_permission'] === []
+    && str_contains($access['note'] ?? '', 'Reconnect'),
+    'toolAccess reports the key scopes, splits hidden tools by gate, and explains the key-scope remedy'
 );
 $scoped->configure(null, []);
+$access = $scoped->toolAccess();
+check($access['hidden'] === 0 && !isset($access['note']), 'an unscoped key with no account filter hides nothing and carries no note');
 
 $permissionMap = (new ToolRegistry(null))->permissionMap();
 check(

@@ -133,8 +133,8 @@ class McpServer
             ],
             'serverInfo' => ['name' => 'grav-plugin-mcp-server', 'version' => self::VERSION],
             'instructions' => 'The tool list is filtered to this account\'s permissions.'
-                . ($access['hidden'] > 0 ? sprintf(' %d more tool%s exist behind permissions this account lacks.', $access['hidden'], $access['hidden'] === 1 ? '' : 's') : '')
-                . ' Call whoami for the account\'s grants and what each missing permission would unlock.',
+                . ($access['hidden'] > 0 ? sprintf(' %d more tool%s exist behind permissions this key or account lacks.', $access['hidden'], $access['hidden'] === 1 ? '' : 's') : '')
+                . ' Call whoami for the account\'s grants, the key\'s scopes, and what would unlock each hidden tool.',
         ]);
     }
 
@@ -145,10 +145,16 @@ class McpServer
             // Tool names are public (repo, README) — naming the missing
             // permission leaks nothing and turns a dead end into an ask.
             $missing = $this->tools->missingPermission($name);
+            if ($missing === null) {
+                return $this->error($id, -32602, "Unknown tool: {$name}");
+            }
 
-            return $this->error($id, -32602, $missing === null
-                ? "Unknown tool: {$name}"
-                : "Tool '{$name}' exists but requires the {$missing} permission, which this account's credentials do not grant. Call whoami for the account's grants.");
+            // Two gates, two remedies: a key granted without the scope needs
+            // re-consent (the account may already hold the permission); an
+            // account without the permission needs the grant.
+            return $this->error($id, -32602, $this->tools->hiddenCause($name) === 'key_scope'
+                ? "Tool '{$name}' exists but requires the {$missing} permission, which this key's scope list does not include — the account may hold it, but a key's scopes are fixed at consent and never widened silently. Reconnect the connector to re-run consent with the current scopes, or mint a key that includes it. Call whoami for details."
+                : "Tool '{$name}' exists but requires the {$missing} permission, which this account does not hold. Grant it to the account or one of its groups and the tool appears. Call whoami for the account's grants.");
         }
 
         try {
