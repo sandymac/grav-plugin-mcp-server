@@ -59,14 +59,14 @@ final class ConfigTools
                 'descriptor' => [
                     'name' => 'update_config',
                     'title' => 'Update Config',
-                    'description' => 'Update configuration values for a scope. Writes are differential — only keys that differ from parent defaults persist. `environment` targets an existing user/env/ folder (see `manage_environments`); pass `etag` from `get_config` for conflict detection. [Requires: api.config.write]',
+                    'description' => 'Update configuration values for a scope. Writes are differential — only keys that differ from parent defaults persist. `environment` targets an existing user/env/ folder (see `create_environment`); pass `etag` from `get_config` for conflict detection. [Requires: api.config.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
                             'scope' => ['type' => 'string', 'description' => 'Config scope to update'],
                             'values' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Configuration values to set (differential save vs defaults)'],
                             'etag' => ['type' => 'string', 'description' => 'ETag from get_config for conflict detection'],
-                            'environment' => ['type' => 'string', 'description' => 'Target env folder name (e.g. "production"); routes write to user/env/<name>/config/. Must be created via manage_environments first'],
+                            'environment' => ['type' => 'string', 'description' => 'Target env folder name (e.g. "production"); routes write to user/env/<name>/config/. Must be created via create_environment first'],
                         ],
                         'required' => ['scope', 'values'],
                         'additionalProperties' => false,
@@ -84,57 +84,6 @@ final class ConfigTools
 
                     return ApiBridge::fromResponse(
                         $api->request('PATCH', '/config/' . ApiBridge::path($args, 'scope'), [], $args['values'] ?? [], $headers),
-                        true,
-                        static fn(mixed $data): array => self::wrapConfig($data)
-                    );
-                },
-            ],
-
-            'revert_config' => [
-                'permission' => 'api.config.write',
-                'descriptor' => [
-                    'name' => 'revert_config',
-                    'title' => 'Revert Config',
-                    'description' => 'Revert configuration to inherited values. `keys` drops those overrides from the scope\'s file in the targeted layer (environment or base user/config); `reset` deletes the whole override file so the scope falls back to the parent layer and shipped defaults. The system, security, plugins/api, scheduler and backups scopes need a super-admin. Returns the resulting effective config with an etag. [Requires: api.config.write]',
-                    'inputSchema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'scope' => ['type' => 'string', 'description' => 'Config scope to revert'],
-                            'keys' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Dotted config paths to remove from the scope\'s override file'],
-                            'reset' => ['type' => 'boolean', 'description' => 'Remove the whole override file for the scope'],
-                            'etag' => ['type' => 'string', 'description' => 'ETag from get_config for conflict detection'],
-                            'environment' => ['type' => 'string', 'description' => 'Target env folder name (e.g. "production"); routes write to user/env/<name>/config/. Must be created via manage_environments first'],
-                        ],
-                        'required' => ['scope'],
-                        'additionalProperties' => false,
-                    ],
-                    'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
-                ],
-                'handler' => static function (ApiBridge $api, array $args): array {
-                    $keys = $args['keys'] ?? null;
-                    $reset = $args['reset'] ?? false;
-                    if ((!is_array($keys) || $keys === []) && $reset !== true) {
-                        return ApiBridge::toolJson(['error' => 'Provide keys to revert or reset: true']);
-                    }
-
-                    $body = [];
-                    if (isset($args['keys'])) {
-                        $body['keys'] = $args['keys'];
-                    }
-                    if (isset($args['reset'])) {
-                        $body['reset'] = $args['reset'];
-                    }
-
-                    $headers = [];
-                    if (isset($args['etag'])) {
-                        $headers['If-Match'] = (string) $args['etag'];
-                    }
-                    if (isset($args['environment'])) {
-                        $headers['X-Config-Environment'] = (string) $args['environment'];
-                    }
-
-                    return ApiBridge::fromResponse(
-                        $api->request('POST', '/config/' . ApiBridge::path($args, 'scope') . '/revert', [], $body, $headers),
                         true,
                         static fn(mixed $data): array => self::wrapConfig($data)
                     );

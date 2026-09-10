@@ -306,37 +306,6 @@ final class PagesTools
                     default => ApiBridge::toolError('Invalid action. Must be one of: batch, reorder, reorganize'),
                 },
             ],
-
-            'get_page_preview_token' => [
-                'permission' => 'api.pages.read',
-                'descriptor' => [
-                    'name' => 'get_page_preview_token',
-                    'title' => 'Get Page Preview Token',
-                    'description' => 'Mint a short-lived token (default 300s) pinned to this page so a person can view it unpublished. Disabled sites return 403 (api setting allow_draft_preview, on by default). [Requires: api.pages.read]',
-                    'inputSchema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'route' => ['type' => 'string', 'description' => 'Page route (e.g. "/blog/my-post")'],
-                            'lang' => ['type' => 'string', 'description' => 'Language code'],
-                        ],
-                        'required' => ['route'],
-                        'additionalProperties' => false,
-                    ],
-                    'annotations' => ['readOnlyHint' => true],
-                ],
-                'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
-                    $api->request('POST', '/pages/' . ApiBridge::path($args) . '/preview-token', ['lang' => $args['lang'] ?? null]),
-                    false,
-                    static function (mixed $data): array {
-                        if (!is_array($data)) {
-                            return (array) $data;
-                        }
-                        $data['preview_query'] = 'admin_preview=1&preview_token=' . rawurlencode((string) ($data['token'] ?? ''));
-                        $data['usage'] = 'Append preview_query to the page\'s public URL to view the unpublished page until it expires.';
-                        return $data;
-                    }
-                ),
-            ],
         ];
     }
 }

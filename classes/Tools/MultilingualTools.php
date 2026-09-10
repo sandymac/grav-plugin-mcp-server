@@ -76,14 +76,13 @@ final class MultilingualTools
                 'descriptor' => [
                     'name' => 'manage_page_translation',
                     'title' => 'Manage Page Translation',
-                    'description' => 'Create a new language translation for a page, adopt an untyped base page file (e.g. `default.md`) as a specific language by renaming it to `{template}.{lang}.md` (content untouched; fails if that language already has a file, or no untyped base exists), or sync one translation into another. sync copies the source translation\'s content AND header over the target language\'s file, overwriting it; the target translation must already exist (use create first); both codes must be enabled site languages and differ. [Requires: api.pages.write]',
+                    'description' => 'Create a new language translation for a page, or adopt an untyped base page file (e.g. `default.md`) as a specific language by renaming it to `{template}.{lang}.md` (content untouched; fails if that language already has a file, or no untyped base exists). [Requires: api.pages.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'adopt', 'sync'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'adopt'], 'description' => 'Action to perform'],
                             'route' => ['type' => 'string', 'description' => 'Page route'],
                             'language' => ['type' => 'string', 'description' => 'Target language code (e.g. "fr", "de", "es")'],
-                            'source_language' => ['type' => 'string', 'description' => 'Language to copy from (sync action only)'],
                             'title' => ['type' => 'string', 'description' => 'Translated title (create action only)'],
                             'content' => ['type' => 'string', 'description' => 'Translated content in markdown (create action only)'],
                             'header' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Translated header/frontmatter fields (create action only)'],
@@ -91,7 +90,7 @@ final class MultilingualTools
                         'required' => ['route', 'action', 'language'],
                         'additionalProperties' => false,
                     ],
-                    'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
+                    'annotations' => ['readOnlyHint' => false],
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
                     return match ($args['action'] ?? null) {
@@ -109,16 +108,7 @@ final class MultilingualTools
                             // The MCP-facing name is 'language'; the endpoint reads 'lang'.
                             ['lang' => $args['language'] ?? '']
                         )),
-                        'sync' => ($args['source_language'] ?? '') === ''
-                            ? ApiBridge::toolJson(['error' => 'source_language is required for the sync action'])
-                            : ApiBridge::fromResponse($api->request(
-                                'POST',
-                                '/pages/' . ApiBridge::path($args) . '/sync',
-                                [],
-                                // The MCP-facing names are 'source_language'/'language'; the endpoint reads 'source_lang'/'target_lang'.
-                                ['source_lang' => $args['source_language'] ?? '', 'target_lang' => $args['language'] ?? '']
-                            )),
-                        default => ApiBridge::toolError('Invalid action: must be one of "create", "adopt", "sync".'),
+                        default => ApiBridge::toolError('Invalid action: must be one of "create", "adopt".'),
                     };
                 },
             ],

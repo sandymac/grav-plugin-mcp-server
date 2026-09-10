@@ -48,7 +48,7 @@ $tools = $server->dispatch(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/li
 $descriptors = $tools['result']['tools'];
 $byName = array_column($descriptors, null, 'name');
 check($descriptors[0]['name'] === 'site_info', 'tools/list returns site_info first');
-check(count($descriptors) === 63, 'tools/list returns all 63 tools, got ' . count($descriptors));
+check(count($descriptors) === 50, 'tools/list returns all 50 tools, got ' . count($descriptors));
 check(
     array_diff(
         [
@@ -79,7 +79,7 @@ check(array_diff(['site_info', 'list_pages', 'get_page', 'list_languages'], $sco
 check(array_intersect(['create_page', 'update_config', 'manage_users', 'clear_cache'], $scopedNames) === [], 'a read-scoped key sees no write tools');
 check(!$scoped->has('create_page'), 'a hidden tool is not callable');
 $scoped->configure(null, []);
-check(count($scoped->list()) === 63, 'an unscoped key sees everything');
+check(count($scoped->list()) === 50, 'an unscoped key sees everything');
 
 // Hidden-vs-unknown: an existing-but-filtered tool names its missing permission.
 $scoped->configure(null, ['api.pages.read']);
@@ -88,7 +88,7 @@ check($scoped->missingPermission('list_pages') === null, 'missingPermission is n
 check($scoped->missingPermission('no_such_tool') === null, 'missingPermission is null for an unknown tool');
 $access = $scoped->toolAccess();
 check(
-    $access['visible'] + $access['hidden'] === 63
+    $access['visible'] + $access['hidden'] === 50
     && in_array('manage_users', $access['hidden_by_missing_permission']['api.users.write'] ?? [], true),
     'toolAccess partitions the surface and groups hidden tools by permission'
 );

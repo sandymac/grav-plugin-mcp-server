@@ -18,7 +18,6 @@ class ToolRegistry
     private const array DOMAINS = [
         Tools\PagesTools::class,
         Tools\MultilingualTools::class,
-        Tools\TranslationsTools::class,
         Tools\MediaTools::class,
         Tools\ConfigTools::class,
         Tools\UsersTools::class,
