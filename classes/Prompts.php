@@ -29,6 +29,14 @@ class Prompts
                 ['name' => 'target_lang', 'description' => 'Target language code (e.g. "fr", "de", "es")', 'required' => true],
             ],
         ],
+        'translate_ui_strings' => [
+            'title' => 'Translate Interface Strings',
+            'description' => 'Fill a language\'s missing interface strings (language-file translations, not page content): find the gaps, propose machine translations where available, review, and commit them as overrides.',
+            'arguments' => [
+                ['name' => 'target_lang', 'description' => 'Language code to translate into (e.g. "fr", "de", "es")', 'required' => true],
+                ['name' => 'namespace', 'description' => 'Limit to one namespace, e.g. "PLUGIN_ADMIN" (first dot segment of the keys)', 'required' => false],
+            ],
+        ],
         'site_health_check' => [
             'title' => 'Site Health Check',
             'description' => 'Comprehensive site health check: updates, reports, logs, backups, and scheduler status.',
@@ -86,6 +94,7 @@ class Prompts
         $text = match ($name) {
             'create_blog_post' => self::createBlogPost($args),
             'translate_page' => self::translatePage($args),
+            'translate_ui_strings' => self::translateUiStrings($args),
             'site_health_check' => self::siteHealthCheck(),
             'content_audit' => self::contentAudit($args),
             'plugin_setup' => self::pluginSetup($args),
@@ -145,6 +154,28 @@ Steps:
 TXT;
     }
 
+    private static function translateUiStrings(array $a): string
+    {
+        $targetLang = (string) ($a['target_lang'] ?? '');
+        $namespace = (string) ($a['namespace'] ?? '');
+        $nsSuffix = $namespace !== '' ? " (namespace \"{$namespace}\")" : '';
+        $nsFilter = $namespace !== '' ? ", namespace=\"{$namespace}\"" : '';
+
+        return <<<TXT
+Translate the site's interface strings (language files, not page content) into {$targetLang}{$nsSuffix}.
+
+Steps:
+1. Use get_translations with view="machine_translation" to see whether machine translation is available (it needs the ai-translate plugin installed, enabled and configured). If it is not, write the translations yourself in step 4.
+2. Use get_translations with view="coverage" to see how many {$targetLang} strings are missing
+3. Use search_translation_keys with status="missing", langs=["{$targetLang}"]{$nsFilter}, per_page=200 to list the untranslated keys, paging until done
+4. For each page of keys, use machine_translate with target_lang="{$targetLang}" and keys=[...] (max 200 per call). It writes nothing — it returns one proposal per key. Review each: keep the ones with ok=true, and translate by hand those whose reason is no_source, icu_needs_human or placeholders_mangled (keep every {placeholder} and ICU plural form intact)
+5. Use manage_translation_overrides with action="set", lang="{$targetLang}" and set={key: value} to commit the reviewed translations. Keys are flat dotted strings like "PLUGIN_ADMIN.SAVE"; a value equal to the shipped translation is dropped and reported as reverted
+6. Use get_translations with view="coverage" again to confirm the missing count dropped
+
+Report: how many strings were translated, which were left for a human and why, and anything that looked wrong in the source text.
+TXT;
+    }
+
     private static function siteHealthCheck(): string
     {
         return <<<TXT
@@ -155,7 +186,7 @@ Steps:
 2. Use get_packages with view="updates" to find available updates for core, plugins, and themes
 3. Use run_reports to run security and YAML lint checks
 4. Use get_logs with level="ERROR" to check for recent errors
-5. Use list_backups to verify backup recency
+5. Use manage_backups with action="list" to verify backup recency
 6. Use get_scheduler with view="status" to check cron is configured
 7. Use get_dashboard with view="notifications" for any important system notices
 

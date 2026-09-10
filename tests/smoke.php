@@ -144,7 +144,25 @@ $readBad = $server->dispatch(['jsonrpc' => '2.0', 'id' => 9, 'method' => 'resour
 check($readBad['error']['code'] === -32002, 'unknown resource URI is a -32002 protocol error');
 
 $promptsList = $server->dispatch(['jsonrpc' => '2.0', 'id' => 10, 'method' => 'prompts/list']);
-check(count($promptsList['result']['prompts']) === 6, 'prompts/list returns exactly 6 prompts, got ' . count($promptsList['result']['prompts']));
+check(count($promptsList['result']['prompts']) === 7, 'prompts/list returns exactly 7 prompts, got ' . count($promptsList['result']['prompts']));
+// Every prompt renders and names only tools that exist — a renamed tool once left a prompt pointing at nothing.
+$toolNames = array_column($server->dispatch(['jsonrpc' => '2.0', 'id' => 13, 'method' => 'tools/list'])['result']['tools'], 'name');
+foreach ($promptsList['result']['prompts'] as $p) {
+    $args = [];
+    foreach ($p['arguments'] as $arg) {
+        $args[$arg['name']] = 'x';
+    }
+    $text = $server->dispatch(['jsonrpc' => '2.0', 'id' => 14, 'method' => 'prompts/get', 'params' => ['name' => $p['name'], 'arguments' => $args]])['result']['messages'][0]['content']['text'] ?? '';
+    check($text !== '', sprintf('prompt %s renders', $p['name']));
+    // "Use <tool>" / "use <tool>": any current tool name (so single-word names
+    // like whoami count), or any snake_case token (so a stale name is flagged).
+    // Prose like "use ETags" matches neither. Ceiling: a stale single-word
+    // name would slip through — none has ever existed.
+    $known = implode('|', array_map(static fn(string $n): string => preg_quote($n, '/'), $toolNames));
+    preg_match_all('/\buse (' . $known . '|[a-z]+(?:_[a-z]+)+)\b/i', $text, $m);
+    $unknown = array_diff(array_unique($m[1]), $toolNames);
+    check($m[1] !== [] && $unknown === [], sprintf('prompt %s names only existing tools (unknown: %s)', $p['name'], implode(', ', $unknown)));
+}
 
 $promptGet = $server->dispatch(['jsonrpc' => '2.0', 'id' => 11, 'method' => 'prompts/get', 'params' => ['name' => 'create_blog_post', 'arguments' => ['topic' => 'X']]]);
 check(str_contains($promptGet['result']['messages'][0]['content']['text'], 'X'), 'prompts/get create_blog_post interpolates the topic argument');
