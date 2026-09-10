@@ -117,8 +117,9 @@ declares.
 This is also why the OAuth consent screen mints an *unscoped* key for a "full account
 access" grant: a key capped to this plugin's own advertised scopes could never reach a
 permission a plugin declares on its own. The consent screen explains this and offers a
-checkbox to freeze the grant to the listed vocabulary instead, for connectors that
-shouldn't automatically pick up whatever plugins add later. Unticking any listed
+checkbox to freeze the grant to the listed vocabulary instead, for connectors that should
+be limited to the built-in tools — plugin-published tools, installed now or added later,
+need permissions outside that list and are excluded by a frozen grant. Unticking any listed
 permission has the same freezing effect: the grant becomes exactly what stayed ticked.
 
 ## Verify with curl
