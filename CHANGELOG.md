@@ -1,3 +1,11 @@
+# v1.3.1
+## 2026-09-10
+
+1. [](#new)
+    * `translate_ui_strings` prompt: the workflow for filling a language's missing interface strings — check machine-translation readiness with `get_translations`, find the gaps with `search_translation_keys`, propose with `machine_translate`, review the proposals, commit with `manage_translation_overrides`, re-check coverage.
+1. [](#bugfix)
+    * The `site_health_check` prompt still named `list_backups`, which 1.3.0 folded into `manage_backups`; it now says `manage_backups` with action "list". Smoke now renders every prompt and fails if one names a tool that does not exist.
+
 # v1.3.0
 ## 2026-09-09
 

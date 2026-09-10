@@ -133,7 +133,7 @@ curl -s https://grav.example.com/mcp \
 
 ## Status
 
-62 tools across 12 domains (pages, multilingual, translations, media, config, users, GPM, system, dashboard, webhooks, blueprints, plugins) plus `site_info`, 5 resources, and 6 prompts, tracking the API plugin's REST surface. Every tool call dispatches in-process through the API plugin's own router, so its permission scopes, page ACLs, ETag conflict handling, audit trail, and rate limiting all apply unchanged. A connected client only sees the tools its key scopes *and* its account's permissions allow — a limited bot account advertises a correspondingly small tool list. Validated end-to-end on a live deployment as both a claude.ai custom connector and a Claude Code HTTP server.
+62 tools across 12 domains (pages, multilingual, translations, media, config, users, GPM, system, dashboard, webhooks, blueprints, plugins) plus `site_info`, 5 resources, and 7 prompts, tracking the API plugin's REST surface. Every tool call dispatches in-process through the API plugin's own router, so its permission scopes, page ACLs, ETag conflict handling, audit trail, and rate limiting all apply unchanged. A connected client only sees the tools its key scopes *and* its account's permissions allow — a limited bot account advertises a correspondingly small tool list. Validated end-to-end on a live deployment as both a claude.ai custom connector and a Claude Code HTTP server.
 
 ## Development
 
