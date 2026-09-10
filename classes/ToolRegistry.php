@@ -176,20 +176,23 @@ class ToolRegistry
     }
 
     /**
-     * Core tools only: a plugin tool the caller lacks the permission for never
-     * reaches us, so there is no hidden set to report for those. Hidden tools
-     * are split by the gate that hides them because the remedies differ: a
+     * Core tools plus the plugin tools /mcp/tools published to this caller.
+     * The api plugin has already dropped plugin tools the account's permissions
+     * exclude, so those never reach us and cannot be counted; a plugin tool the
+     * KEY's scope list excludes does reach us and is reported. Hidden tools are
+     * split by the gate that hides them because the remedies differ: a
      * key-scope gap is closed by re-consenting (the account may already hold
      * the permission), an account gap by granting it.
      *
-     * @return array{visible: int, hidden: int, key_scopes: list<string>, hidden_by_key_scope: array<string, list<string>>, hidden_by_account_permission: array<string, list<string>>, note?: string}
+     * @return array{visible: int, hidden: int, core_tools: int, plugin_tools: int, key_scopes: list<string>, hidden_by_key_scope: array<string, list<string>>, hidden_by_account_permission: array<string, list<string>>, note?: string}
      */
     public function toolAccess(): array
     {
         $visible = 0;
         $byScope = [];
         $byAccount = [];
-        foreach ($this->all() as $name => $tool) {
+        $plugin = $this->pluginTools();
+        foreach ($this->all() + $plugin as $name => $tool) {
             $permission = $tool['permission'];
             $cause = $permission === null ? null : $this->blocker($permission);
             if ($cause === null) {
@@ -206,6 +209,10 @@ class ToolRegistry
         $access = [
             'visible' => $visible,
             'hidden' => array_sum(array_map('count', $byScope)) + array_sum(array_map('count', $byAccount)),
+            // core_tools is the fixed surface; plugin_tools is what plugins
+            // published to this account (discover_plugins lists them by plugin).
+            'core_tools' => count($this->all()),
+            'plugin_tools' => count($plugin),
             // [] = unscoped: the account's permissions are the only cap.
             'key_scopes' => $this->scopes,
             'hidden_by_key_scope' => $byScope,
