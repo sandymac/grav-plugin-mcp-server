@@ -31,7 +31,9 @@ class McpServerPlugin extends Plugin
         return <<<MD
         A connected client only sees — and can only call — the tools its account's
         permissions (and its API key's scopes, if any) allow. Grant permissions under
-        *Accounts → (user) → Access*; each `api.*` row below is a checkbox there.
+        *Accounts → (user) → Access*; each `api.*` row below is a checkbox there. The
+        `admin.super` row is the api plugin's super-only gate: **API Super User**
+        (`api.super`) satisfies it, as does the classic-Admin super flag.
 
         | Permission | Tools it gates |
         |---|---|
@@ -88,6 +90,16 @@ class McpServerPlugin extends Plugin
         A key can do exactly what that account's `api.*` permissions allow. List or
         revoke keys with `bin/plugin api keys:list` / `keys:revoke`, or ask an
         already-connected MCP client to run the `manage_api_keys` tool.
+
+        **Scopes** — a key can also carry a scope list that caps it *below* its
+        account. The OAuth consent screen mints one when you untick a permission or
+        tick the limit box; keys from `keys:generate` never have one. A scope list is
+        fixed when the key is created: an upgrade that adds tools and permissions does
+        not widen it, so a connector can stop short of tools its account is allowed to
+        use, and a frozen grant excludes plugin-published tools entirely. The `whoami`
+        tool shows the key's scopes and lists hidden tools by cause
+        (`hidden_by_key_scope` vs `hidden_by_account_permission`); reconnecting the
+        client re-runs consent with the current list.
 
         **Limiting what the AI can do** — don't hand an assistant your own account's
         power. Create a separate account (e.g. `ai-bot`) holding only the
