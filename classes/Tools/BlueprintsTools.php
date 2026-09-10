@@ -42,12 +42,12 @@ final class BlueprintsTools
                 'descriptor' => [
                     'name' => 'get_blueprint',
                     'title' => 'Get Blueprint',
-                    'description' => 'Get the full field schema (blueprint) for a page template, plugin config, theme config, user accounts, or system config. [Requires: api.pages.read for "page", api.config.read for "plugin"/"theme"/"config", api.access for "user"]',
+                    'description' => 'Get the full field schema (blueprint) for a page template, plugin config, theme config, user accounts, user groups (the edit form as "group", the create form as "group_new"), or system config. [Requires: api.pages.read for "page", api.config.read for "plugin"/"theme"/"config", api.access for "user", api.users.read for "group"/"group_new"]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'type' => ['type' => 'string', 'enum' => ['page', 'plugin', 'theme', 'user', 'config'], 'description' => 'Blueprint type'],
-                            'name' => ['type' => 'string', 'description' => 'Blueprint name: template name for "page", plugin/theme slug for "plugin"/"theme", "users" for "user", scope for "config"'],
+                            'type' => ['type' => 'string', 'enum' => ['page', 'plugin', 'theme', 'user', 'config', 'group', 'group_new'], 'description' => 'Blueprint type'],
+                            'name' => ['type' => 'string', 'description' => 'Blueprint name: template name for "page", plugin/theme slug for "plugin"/"theme", scope for "config"; ignored for "user", "group" and "group_new" (pass the type again)'],
                         ],
                         'required' => ['type', 'name'],
                         'additionalProperties' => false,
@@ -62,11 +62,13 @@ final class BlueprintsTools
                         'theme' => '/blueprints/themes/' . $name,
                         'user' => '/blueprints/users',
                         'config' => '/blueprints/config/' . $name,
+                        'group' => '/blueprints/groups',
+                        'group_new' => '/blueprints/groups/new',
                         default => null,
                     };
 
                     if ($path === null) {
-                        return ApiBridge::toolError('Invalid type: must be one of "page", "plugin", "theme", "user", "config".');
+                        return ApiBridge::toolError('Invalid type: must be one of "page", "plugin", "theme", "user", "config", "group", "group_new".');
                     }
 
                     return ApiBridge::fromResponse($api->request('GET', $path));
