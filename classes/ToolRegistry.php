@@ -113,14 +113,22 @@ class ToolRegistry
      */
     private function visible(?string $permission): bool
     {
-        if ($permission === null) {
-            return true;
-        }
+        return $permission === null || $this->blocker($permission) === null;
+    }
+
+    /**
+     * Which gate hides a permission: 'key_scope' when the key's scope list
+     * excludes it (the account may well hold it — a scoped key is never widened
+     * silently, DECISIONS.md #6), 'account' when the account lacks it, null when
+     * neither does. The two have different remedies, so callers name the gate.
+     */
+    private function blocker(string $permission): ?string
+    {
         if ($this->scopes !== [] && !self::scopeAllows($this->scopes, $permission)) {
-            return false;
+            return 'key_scope';
         }
 
-        return $this->accountHolds($permission);
+        return $this->accountHolds($permission) ? null : 'account';
     }
 
     /**
@@ -157,29 +165,57 @@ class ToolRegistry
     }
 
     /**
+     * Why an existing tool is hidden: 'key_scope' or 'account' (see blocker()),
+     * null when the tool is unknown or visible.
+     */
+    public function hiddenCause(string $name): ?string
+    {
+        $permission = $this->tool($name)['permission'] ?? null;
+
+        return $permission === null ? null : $this->blocker($permission);
+    }
+
+    /**
      * Core tools only: a plugin tool the caller lacks the permission for never
-     * reaches us, so there is no hidden set to report for those.
+     * reaches us, so there is no hidden set to report for those. Hidden tools
+     * are split by the gate that hides them because the remedies differ: a
+     * key-scope gap is closed by re-consenting (the account may already hold
+     * the permission), an account gap by granting it.
      *
-     * @return array{visible: int, hidden: int, hidden_by_missing_permission: array<string, list<string>>}
+     * @return array{visible: int, hidden: int, key_scopes: list<string>, hidden_by_key_scope: array<string, list<string>>, hidden_by_account_permission: array<string, list<string>>, note?: string}
      */
     public function toolAccess(): array
     {
         $visible = 0;
-        $hidden = [];
+        $byScope = [];
+        $byAccount = [];
         foreach ($this->all() as $name => $tool) {
-            if ($this->visible($tool['permission'])) {
+            $permission = $tool['permission'];
+            $cause = $permission === null ? null : $this->blocker($permission);
+            if ($cause === null) {
                 $visible++;
+            } elseif ($cause === 'key_scope') {
+                $byScope[$permission][] = $name;
             } else {
-                $hidden[$tool['permission']][] = $name;
+                $byAccount[$permission][] = $name;
             }
         }
-        ksort($hidden);
+        ksort($byScope);
+        ksort($byAccount);
 
-        return [
+        $access = [
             'visible' => $visible,
-            'hidden' => array_sum(array_map('count', $hidden)),
-            'hidden_by_missing_permission' => $hidden,
+            'hidden' => array_sum(array_map('count', $byScope)) + array_sum(array_map('count', $byAccount)),
+            // [] = unscoped: the account's permissions are the only cap.
+            'key_scopes' => $this->scopes,
+            'hidden_by_key_scope' => $byScope,
+            'hidden_by_account_permission' => $byAccount,
         ];
+        if ($byScope !== []) {
+            $access['note'] = 'hidden_by_key_scope: this key\'s scope list was fixed when it was granted and is never widened silently, so these tools stay hidden even where the access map above says the account holds the permission. Reconnect the connector to re-run consent with the current scopes, or mint a key that includes them. hidden_by_account_permission: grant the permission to the account or one of its groups.';
+        }
+
+        return $access;
     }
 
     /** @return array<string, list<string>> permission => tool names; the no-permission tools keyed as ''. */
@@ -257,7 +293,7 @@ class ToolRegistry
                     'descriptor' => [
                         'name' => 'whoami',
                         'title' => 'Who Am I',
-                        'description' => 'The account behind the current key or OAuth token: username, profile, and its resolved permissions — the grants that determine which tools are visible and callable (each tool description states its requirement). Also reports tool_access: how many tools are hidden from this account, grouped by the permission that would unlock them. [Requires: api.access]',
+                        'description' => 'The account behind the current key or OAuth token: username, profile, and its resolved permissions — the grants that determine which tools are visible and callable (each tool description states its requirement). Also reports tool_access: the key\'s scope list and the hidden tools split by what hides them — hidden_by_key_scope (the key was granted without that scope, even if the account holds the permission; reconnect the connector to re-consent) and hidden_by_account_permission (grant the permission to the account). [Requires: api.access]',
                         'inputSchema' => [
                             'type' => 'object',
                             'properties' => new \stdClass(),
