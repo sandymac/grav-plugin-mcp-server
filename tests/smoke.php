@@ -154,9 +154,12 @@ foreach ($promptsList['result']['prompts'] as $p) {
     }
     $text = $server->dispatch(['jsonrpc' => '2.0', 'id' => 14, 'method' => 'prompts/get', 'params' => ['name' => $p['name'], 'arguments' => $args]])['result']['messages'][0]['content']['text'] ?? '';
     check($text !== '', sprintf('prompt %s renders', $p['name']));
-    // "Use <tool>" / "use <tool>": the underscore requirement keeps "use ETags"
-    // and "use the" out; tool names are snake_case, so it costs nothing.
-    preg_match_all('/\buse ([a-z]+(?:_[a-z]+)+)\b/i', $text, $m);
+    // "Use <tool>" / "use <tool>": any current tool name (so single-word names
+    // like whoami count), or any snake_case token (so a stale name is flagged).
+    // Prose like "use ETags" matches neither. Ceiling: a stale single-word
+    // name would slip through — none has ever existed.
+    $known = implode('|', array_map(static fn(string $n): string => preg_quote($n, '/'), $toolNames));
+    preg_match_all('/\buse (' . $known . '|[a-z]+(?:_[a-z]+)+)\b/i', $text, $m);
     $unknown = array_diff(array_unique($m[1]), $toolNames);
     check($m[1] !== [] && $unknown === [], sprintf('prompt %s names only existing tools (unknown: %s)', $p['name'], implode(', ', $unknown)));
 }
