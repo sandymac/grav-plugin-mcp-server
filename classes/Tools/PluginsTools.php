@@ -23,7 +23,7 @@ final class PluginsTools
                 'descriptor' => [
                     'name' => 'discover_plugins',
                     'title' => 'Discover Plugin Features',
-                    'description' => 'Discover what features installed plugins expose: sidebar items, floating widgets, context panels, settings panels, custom admin pages, and which plugins publish MCP tools of their own. [Requires: api.access]',
+                    'description' => 'Discover what features installed plugins expose: sidebar items, floating widgets, context panels, settings panels, custom admin pages, and which plugins publish MCP tools of their own. Everything here is filtered to the calling account\'s permissions, so an item that is absent may be a missing grant rather than a missing feature. mcp_tools counts the plugin-published tools this account can see; whoami\'s tool_access counts the same tools as plugin_tools. [Requires: api.access]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => new \stdClass(),

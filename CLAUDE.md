@@ -44,7 +44,9 @@ triage here**. The machinery:
    git clone -c core.longpaths=true --depth 1 -b <NEW> https://github.com/getgrav/grav-plugin-api /tmp/api-new
    ```
 2. **Reproduce.** `API_PLUGIN_DIR=/tmp/api-new php tests/param-map.php` (via Docker on a
-   machine without PHP). Failures name the tool and the mismatched parameter/permission.
+   machine without PHP). Failures name the tool and the mismatched parameter/permission,
+   or an `uncovered route` — an endpoint no tool reaches that is not in param-map's
+   `$skippedRoutes` either. That is the usual signal for a new release.
 3. **Fix drift.** Tool descriptors + handlers live in `classes/Tools/*Tools.php`. A tool's
    param names must be what the api controller *reads*, and its `permission` must match
    what the route *enforces* — param-map checks both. Routes with identity- or
@@ -54,9 +56,10 @@ triage here**. The machinery:
 4. **New endpoints default to adoption** — the target is feature parity with the api
    plugin's REST surface. Exceptions: UI plumbing that serves the admin SPA (script
    bundles, field discovery, SPA dictionaries) and binary downloads — record a skip in
-   DECISIONS.md. Follow the pattern of the endpoint's domain in `classes/Tools/`
-   (register new domains in `ToolRegistry`); the api controller's parameter reads and
-   permission checks are the schema authority.
+   param-map's `$skippedRoutes` with its reason (DECISIONS.md #4 names the categories; add
+   a bullet there only for a new category or a judgement call). Follow the pattern of the
+   endpoint's domain in `classes/Tools/` (register new domains in `ToolRegistry`); the api
+   controller's parameter reads and permission checks are the schema authority.
 5. **Record the triage: bump `tests/api-plugin.pin` to the new release.** A pin bump with
    no code change is a valid outcome — it records "reviewed, nothing to do". If new
    endpoints were adopted, raise the api floor in all three places: `blueprints.yaml`

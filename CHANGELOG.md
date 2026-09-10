@@ -1,3 +1,21 @@
+# v1.3.0
+## 2026-09-09
+
+1. [](#new)
+    * Closes the REST-parity gap against api plugin 1.0.28: every api route is now either reached by a tool or recorded as a deliberate skip, and `tests/param-map.php` fails when a route is neither — so an api release that adds an endpoint turns the upstream-drift workflow red until it is triaged.
+    * User groups: `get_groups` lists groups or shows one; `manage_groups` creates, updates and deletes them (super-admin only). `get_blueprint` gains the `group` and `group_new` types.
+    * Invitations: `manage_invitations` lists, creates, deletes and resends account invitations; create returns the accept link to hand to the invitee.
+    * Media metadata: `get_media_meta` and `update_media_meta` read, set and clear alt text, title, caption, description and tags on page and site media, including one update across up to 50 site files; `rename_media` renames or moves a site media file; `manage_media_folder` gains an `order` action for a folder's display order.
+    * Audit trail: `get_audit_log` reads the api plugin's audit status, filtered events and facets (super-admin only).
+    * Translations editor, a new domain under `api.translations.*`: `get_translations`, `search_translation_keys`, `manage_translation_overrides` and `machine_translate` cover the twelve `/i18n/*` routes — finding untranslated strings, editing `user/languages/<lang>.yaml`, importing from the legacy translation-strings plugin, and proposing machine translations through the ai-translate plugin.
+    * Housekeeping: `clear_log` empties a log file (super-admin only); `revert_config` drops configuration overrides or resets a scope to inherited values; `get_logs` gains `file` and a `files` view; `get_dashboard` gains `popularity`, `feed` and `security_probe` views; `run_reports` gains the Twig-in-Content scan, per-page status and sandbox-policy reports; `manage_page_translation` gains `sync`; `get_page_preview_token` mints a preview link for an unpublished page; `get_webhooks` shows one webhook when `webhook_id` is given.
+1. [](#improved)
+    * **Renamed:** `create_environment` is now `manage_environments` (actions create, delete), and `create_backup` plus `list_backups` are now `manage_backups` (actions list, create, delete). Clients pick up the new names on their next tools/list.
+    * The OAuth consent screen and `scopes_supported` now offer `api.super`, `api.translations.read` and `api.translations.write`, derived from the tool surface as before.
+    * `whoami` now reports the key's scope list and splits hidden tools into `hidden_by_key_scope` and `hidden_by_account_permission`, with a note explaining the first, and the tools/call error for a hidden tool says which of the two applies. A key's scopes are fixed at consent and never widened silently, so after an upgrade that adds permissions — this release adds `api.translations.*` and `api.super` — the account can hold a permission the key was never granted, and the old single `hidden_by_missing_permission` list made that look like a missing grant. Reconnecting the connector re-runs consent with the current scopes. `tool_access` also counts plugin-published tools now (`core_tools` and `plugin_tools`), so its total reconciles with `discover_plugins`; `discover_plugins` says that everything it lists is filtered to the caller's permissions.
+    * The consent screen's full-access headline no longer promises "tools that plugins add later" unconditionally; it now says that holds unless the limit box below is ticked, which freezes the grant to the listed permissions. The limit box's label no longer says only *future* plugin tools are excluded: the offered list is the core tools' permissions, so plugin-published tools whose permissions live outside it — Flex Objects today, anything added later — are excluded by a frozen grant whether or not the plugin is already installed.
+    * Deliberate skips — public auth flows, binary downloads, Admin Next SPA plumbing and preferences, 2FA, avatars, demo mode, GPM repository extras, and the two Twig-content writes (see DECISIONS.md #4 and [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35)) — are recorded in param-map's `$skippedRoutes` with a reason each.
+
 # v1.2.7
 ## 2026-09-09
 

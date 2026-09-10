@@ -77,6 +77,105 @@ $permissionPolicy = [
     // Five routes, three permissions by blueprint type; declared api.access (the
     // weakest) so any key that can use some variant sees the tool.
     'get_blueprint' => 'api.access',
+    // InvitationsController::index enforces api.users.read; the three writes
+    // api.users.write. One tool, declared for the writes (manage_api_keys pattern).
+    'manage_invitations' => 'api.users.write',
+    // GroupsController's writes call its private requireSuperOrAdmin(), which is
+    // requireSuper() = the 'admin.super' scope cap (api.super accounts pass).
+    'manage_groups' => 'admin.super',
+];
+
+/**
+ * Coverage: every api route is either reached by some tool or listed here with
+ * the reason it never will be (DECISIONS.md Architecture #4 names the
+ * categories). A route in neither set fails the run — that is how a new api
+ * release announces an endpoint needing triage. A listed route that a tool
+ * does reach fails too, so this list can't go stale.
+ *
+ * @var array<string, string> 'METHOD /path' (as written in addRoute) => reason
+ */
+$skippedRoutes = [
+    // Public auth flows: no bearer token, nothing for an MCP client to call.
+    'POST /auth/token' => 'public auth flow',
+    'POST /auth/2fa/verify' => 'public auth flow',
+    'POST /auth/refresh' => 'public auth flow',
+    'POST /auth/revoke' => 'public auth flow',
+    'POST /auth/forgot-password' => 'public auth flow',
+    'POST /auth/reset-password' => 'public auth flow',
+    'GET /auth/captcha' => 'public auth flow',
+    'POST /auth/captcha/challenge' => 'public auth flow',
+    'POST /auth/captcha/redeem' => 'public auth flow',
+    'GET /auth/setup' => 'public auth flow (first-run setup)',
+    'POST /auth/setup' => 'public auth flow (first-run setup)',
+    'GET /auth/sso/providers' => 'public auth flow',
+    'POST /auth/sso/exchange' => 'public auth flow',
+    'GET /auth/sso/{provider}/start' => 'public auth flow',
+    'GET /auth/sso/{provider}/callback' => 'public auth flow',
+    'GET /auth/invite/{token}' => 'public invitation accept flow',
+    'POST /auth/invite/{token}' => 'public invitation accept flow',
+    // Binary downloads: a tool result is text.
+    'GET /thumbnails/{file:.+}' => 'binary download',
+    'GET /media/raw/{path:.+}' => 'binary download',
+    'GET /system/backups/{filename}/download' => 'binary download',
+    'GET /audit/export' => 'binary download',
+    // SPA plumbing: script bundles, field discovery, and dictionaries for Admin Next.
+    'GET /ping' => 'SPA plumbing (liveness)',
+    'GET /systeminfo' => 'SPA plumbing (alias of /system/info)',
+    'GET /translations/{lang}' => 'SPA plumbing (admin dictionary)',
+    'GET /admin/languages' => 'SPA plumbing (admin dictionary)',
+    'GET /data/resolve' => 'SPA plumbing (field data sources)',
+    'GET /blueprints/plugins/{plugin}/pages/{pageId}' => 'SPA plumbing (plugin page forms)',
+    'GET /blueprint-files' => 'SPA plumbing (filepicker fallback listing)',
+    'GET /custom-fields' => 'SPA plumbing (field bundles)',
+    'GET /editor/toolbar-buttons' => 'SPA plumbing',
+    'GET /menubar/items' => 'SPA plumbing',
+    'GET /gpm/plugins/{slug}/fields' => 'SPA plumbing (field bundles)',
+    'GET /gpm/plugins/{slug}/field/{type}' => 'SPA plumbing (field scripts)',
+    'GET /gpm/plugins/{slug}/page' => 'SPA plumbing (plugin pages)',
+    'GET /gpm/plugins/{slug}/page-script' => 'SPA plumbing (script bundle)',
+    'GET /gpm/plugins/{slug}/report-script/{reportId}' => 'SPA plumbing (script bundle)',
+    'GET /gpm/plugins/{slug}/widget-script' => 'SPA plumbing (script bundle)',
+    'GET /gpm/plugins/{slug}/panel-script' => 'SPA plumbing (script bundle)',
+    'GET /gpm/plugins/{slug}/modal-script/{modalId}' => 'SPA plumbing (script bundle)',
+    'GET /gpm/themes/{slug}/fields' => 'SPA plumbing (field bundles)',
+    'GET /gpm/themes/{slug}/field/{type}' => 'SPA plumbing (field scripts)',
+    'GET /users/filters' => 'SPA plumbing (list UI)',
+    'GET /users/columns' => 'SPA plumbing (list UI)',
+    'GET /users/row-actions' => 'SPA plumbing (list UI)',
+    'POST /users/{username}/row-action' => 'SPA plumbing (list UI)',
+    'GET /mcp/tools' => 'consumed by PluginTools, not a tool itself',
+    // Admin Next preferences and branding: the SPA's own look-and-feel.
+    'GET /admin-next/preferences' => 'Admin Next preferences',
+    'PATCH /admin-next/preferences/user' => 'Admin Next preferences',
+    'DELETE /admin-next/preferences/user' => 'Admin Next preferences',
+    'PATCH /admin-next/preferences/site' => 'Admin Next preferences',
+    'PATCH /admin-next/branding' => 'Admin Next branding',
+    'POST /admin-next/branding/logo' => 'Admin Next branding (multipart)',
+    'DELETE /admin-next/branding/logo' => 'Admin Next branding',
+    // Per-user security material and binary profile data.
+    'POST /users/{username}/2fa' => '2FA setup returns TOTP secrets',
+    'POST /users/{username}/2fa/enable' => '2FA',
+    'POST /users/{username}/2fa/disable' => '2FA',
+    'POST /users/{username}/avatar' => 'avatar upload (multipart)',
+    'DELETE /users/{username}/avatar' => 'avatar',
+    // Demo mode: niche, and two of three are super-only resets.
+    'GET /demo/status' => 'demo mode',
+    'POST /demo/baseline' => 'demo mode',
+    'POST /demo/reset' => 'demo mode',
+    // GPM extras: search_packages/get_packages/manage_packages cover the workflow.
+    'GET /gpm/grav/changelog' => 'GPM extra',
+    'GET /gpm/repository/plugins' => 'GPM extra (search_packages covers discovery)',
+    'GET /gpm/repository/themes' => 'GPM extra (search_packages covers discovery)',
+    'GET /gpm/repository/{slug}' => 'GPM extra (search_packages covers discovery)',
+    'POST /gpm/direct-install' => 'GPM extra (URL/zip install)',
+    // Twig-content writes: see DECISIONS.md #4 and getgrav/grav-plugin-api#35.
+    'POST /reports/twig-content/allowlist' => 'widens the Twig sandbox; update_config on the security scope covers it with ETag/env support',
+    'DELETE /reports/twig-content/events' => 'destructive route behind a read permission — held for getgrav/grav-plugin-api#35',
+    // Reached at runtime (FastRoute static-first) by get_config/update_config/
+    // get_blueprint with scope "accounts"; the sampler never generates that value.
+    'GET /config/accounts' => 'covered at runtime; sampler artifact',
+    'PATCH /config/accounts' => 'covered at runtime; sampler artifact',
+    'GET /blueprints/config/accounts' => 'covered at runtime; sampler artifact',
 ];
 
 $apiDir = getenv('API_PLUGIN_DIR') ?: __DIR__ . '/../.gravtest/grav-admin/user/plugins/api';
@@ -326,8 +425,22 @@ function keysRead(string $src, array $vars): array
 {
     $keys = [];
     foreach ($vars as $var) {
-        preg_match_all('/\$' . preg_quote($var, '/') . '\s*\[\s*[\'"]([^\'"]+)[\'"]\s*\]/', $src, $m);
+        $v = preg_quote($var, '/');
+        preg_match_all('/\$' . $v . '\s*\[\s*[\'"]([^\'"]+)[\'"]\s*\]/', $src, $m);
         $keys = array_merge($keys, $m[1]);
+        // array_key_exists('k', $var) is a read too — how GroupsController gates
+        // its optional PATCH fields.
+        preg_match_all('/array_key_exists\(\s*[\'"]([^\'"]+)[\'"]\s*,\s*\$' . $v . '\s*\)/', $src, $m);
+        $keys = array_merge($keys, $m[1]);
+        // An inline name list walked against the array:
+        // foreach (['a', 'b'] as $field) { … $var[$field] or array_key_exists($field, $var) … }
+        preg_match_all('/foreach\s*\(\s*\[([^\]]*)\]\s+as\s+\$(\w+)\s*\)/', $src, $m, PREG_SET_ORDER);
+        foreach ($m as $loop) {
+            if (preg_match('/\$' . $v . '\s*\[\s*\$' . $loop[2] . '\s*\]|array_key_exists\(\s*\$' . $loop[2] . '\s*,\s*\$' . $v . '\s*\)/', $src) === 1) {
+                preg_match_all('/[\'"]([^\'"]+)[\'"]/', $loop[1], $names);
+                $keys = array_merge($keys, $names[1]);
+            }
+        }
     }
 
     return $keys;
@@ -457,6 +570,22 @@ function readSets(string $src, string $file): array
     foreach ($m[1] as $const) {
         $query = array_merge($query, constArray($file, $const));
         $declared = true;
+    }
+    // A constant name list walked against the array — `foreach (self::FILTERS as
+    // $key) { $query[$key] … }` (AuditController::collectFilters). The keys are
+    // the constant's values. (Inline lists are keysRead()'s job.)
+    preg_match_all('/foreach\s*\(\s*self::(\w+)\s+as\s+\$(\w+)\s*\)/', $src, $m, PREG_SET_ORDER);
+    foreach ($m as $loop) {
+        $indexed = static fn(string $var): bool => preg_match(
+            '/\$' . preg_quote($var, '/') . '\s*\[\s*\$' . $loop[2] . '\s*\]|array_key_exists\(\s*\$' . $loop[2] . '\s*,\s*\$' . preg_quote($var, '/') . '\s*\)/',
+            $src
+        ) === 1;
+        foreach (array_filter($queryVars, $indexed) as $var) {
+            $query = array_merge($query, constArray($file, $loop[1]));
+        }
+        foreach (array_filter($bodyVars, $indexed) as $var) {
+            $body = array_merge($body, constArray($file, $loop[1]));
+        }
     }
 
     // requireFields($body, ['a', 'b']) is both a read and a hard requirement.
@@ -639,11 +768,22 @@ function argVariants(array $inputSchema): array
     if ($minimal !== $base) {
         $variants[] = $minimal;
     }
-    foreach (array_keys(array_diff_key($base, array_flip($required))) as $optional) {
+    $optionals = array_keys(array_diff_key($base, array_flip($required)));
+    foreach ($optionals as $i => $optional) {
         $without = $base;
         unset($without[$optional]);
         if ($without !== $minimal) {
             $variants[] = $without;
+        }
+        // Full-minus-two as well: a three-way exclusive selector
+        // (update_media_meta's route / path / paths) needs two optionals gone
+        // before any branch issues a request.
+        foreach (array_slice($optionals, $i + 1) as $other) {
+            $pair = $without;
+            unset($pair[$other]);
+            if ($pair !== $minimal) {
+                $variants[] = $pair;
+            }
         }
     }
 
@@ -669,6 +809,7 @@ $requests = 0;
 $opaque = [];
 $readCache = [];
 $permChecked = [];
+$covered = [];
 
 $fail = static function (string $message) use (&$failed): void {
     echo "  FAIL {$message}\n";
@@ -699,6 +840,7 @@ foreach ($tools as $name => $tool) {
             }
 
             $where = $route['controller'] . '::' . $route['action'];
+            $covered[$route['method'] . ' ' . $route['path']] = true;
 
             // Permission contract: the tool's declared permission (visibility +
             // the [Requires: …] hint) must match what the route really enforces.
@@ -767,8 +909,25 @@ if ($opaque !== []) {
     echo '  skipped (opaque): ' . implode(', ', array_keys($opaque)) . "\n";
 }
 
+// Coverage: neither reached nor deliberately skipped = an endpoint to triage.
+$known = [];
+foreach ($routes as $route) {
+    $key = $route['method'] . ' ' . $route['path'];
+    $known[$key] = true;
+    if (!isset($covered[$key]) && !array_key_exists($key, $skippedRoutes)) {
+        $fail(sprintf('uncovered route %s [%s::%s] — adopt it or record a skip in $skippedRoutes', $key, $route['controller'], $route['action']));
+    }
+}
+foreach ($skippedRoutes as $key => $reason) {
+    if (isset($covered[$key])) {
+        $fail(sprintf('$skippedRoutes lists %s but a tool reaches it — drop the entry', $key));
+    } elseif (!isset($known[$key])) {
+        $fail(sprintf('$skippedRoutes lists %s but the api plugin has no such route — drop the entry', $key));
+    }
+}
+
 echo $failed === 0
-    ? sprintf("param-map: OK (%d tools, %d requests checked, %d sides skipped as opaque)\n", count($tools), $requests, count($opaque))
+    ? sprintf("param-map: OK (%d tools, %d requests checked, %d routes covered, %d skipped, %d sides skipped as opaque)\n", count($tools), $requests, count($covered), count($skippedRoutes), count($opaque))
     : sprintf("param-map: %d FAILED\n", $failed);
 exit($failed === 0 ? 0 : 1);
 

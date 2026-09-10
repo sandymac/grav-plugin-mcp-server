@@ -48,7 +48,7 @@ $tools = $server->dispatch(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'tools/li
 $descriptors = $tools['result']['tools'];
 $byName = array_column($descriptors, null, 'name');
 check($descriptors[0]['name'] === 'site_info', 'tools/list returns site_info first');
-check(count($descriptors) === 50, 'tools/list returns all 50 tools, got ' . count($descriptors));
+check(count($descriptors) === 63, 'tools/list returns all 63 tools, got ' . count($descriptors));
 check(
     array_diff(
         [
@@ -79,20 +79,29 @@ check(array_diff(['site_info', 'list_pages', 'get_page', 'list_languages'], $sco
 check(array_intersect(['create_page', 'update_config', 'manage_users', 'clear_cache'], $scopedNames) === [], 'a read-scoped key sees no write tools');
 check(!$scoped->has('create_page'), 'a hidden tool is not callable');
 $scoped->configure(null, []);
-check(count($scoped->list()) === 50, 'an unscoped key sees everything');
+check(count($scoped->list()) === 63, 'an unscoped key sees everything');
 
 // Hidden-vs-unknown: an existing-but-filtered tool names its missing permission.
 $scoped->configure(null, ['api.pages.read']);
 check($scoped->missingPermission('manage_users') === 'api.users.write', 'missingPermission names the gate of a hidden tool');
 check($scoped->missingPermission('list_pages') === null, 'missingPermission is null for a visible tool');
 check($scoped->missingPermission('no_such_tool') === null, 'missingPermission is null for an unknown tool');
+// No account here, so the only gate that can hide a tool is the key's scope list.
+check($scoped->hiddenCause('manage_users') === 'key_scope', 'hiddenCause names the key scope as the gate');
+check($scoped->hiddenCause('list_pages') === null && $scoped->hiddenCause('no_such_tool') === null, 'hiddenCause is null for visible and unknown tools');
 $access = $scoped->toolAccess();
 check(
-    $access['visible'] + $access['hidden'] === 50
-    && in_array('manage_users', $access['hidden_by_missing_permission']['api.users.write'] ?? [], true),
-    'toolAccess partitions the surface and groups hidden tools by permission'
+    $access['visible'] + $access['hidden'] === 63
+    && $access['core_tools'] === 63 && $access['plugin_tools'] === 0 // no Grav here, so no manifest
+    && $access['key_scopes'] === ['api.pages.read']
+    && in_array('manage_users', $access['hidden_by_key_scope']['api.users.write'] ?? [], true)
+    && $access['hidden_by_account_permission'] === []
+    && str_contains($access['note'] ?? '', 'Reconnect'),
+    'toolAccess reports the key scopes, splits hidden tools by gate, and explains the key-scope remedy'
 );
 $scoped->configure(null, []);
+$access = $scoped->toolAccess();
+check($access['hidden'] === 0 && !isset($access['note']), 'an unscoped key with no account filter hides nothing and carries no note');
 
 $permissionMap = (new ToolRegistry(null))->permissionMap();
 check(
