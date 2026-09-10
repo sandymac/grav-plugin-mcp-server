@@ -26,6 +26,23 @@ read its rationale first — most were validated against a live deployment.
    field/widget/panel discovery, the SPA's own translation dictionary), binary downloads,
    and the public auth/login flows. Tool names and schemas may diverge from grav-mcp
    wherever the API warrants it.
+
+   **Skips, as of api 1.0.28 (2026-09-09).** The machine-checked list is `$skippedRoutes` in
+   `tests/param-map.php`, one reason per route; param-map fails when a route is neither reached
+   by a tool nor listed there. The categories and judgement calls: public auth flows (`/auth/*`,
+   invitation accept); binary downloads (thumbnails, raw media, backup download, audit export);
+   SPA plumbing (script bundles, field discovery, list-UI filters/columns/row actions,
+   dictionaries, `/data/resolve`, `/blueprint-files`, `/ping`, `/systeminfo`); Admin Next
+   preferences and branding; per-user 2FA (setup returns TOTP secrets) and avatars (multipart);
+   demo mode; GPM repository browsing, changelog and direct-install (`search_packages` and
+   `manage_packages` cover the workflow); the internal `GET /mcp/tools`; and the two Twig-content
+   writes — the allowlist add, because `update_config` on the `security` scope already covers it
+   with ETag and environment support, and the events clear, held for
+   [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35) (a
+   destructive route behind a read permission). `GET|PATCH /config/accounts` and
+   `GET /blueprints/config/accounts` are reached at runtime by the config and blueprint tools with
+   scope `accounts`; they sit in the skip list only because param-map's sampler never generates
+   that value.
 5. **Plugin tools ride the api plugin's manifest surface** (2026-09-01): tools that
    third-party plugins publish through `GET /mcp/tools` (api plugin 1.0.22+) are offered
    as MCP tools ("plugin tools" — see CONTEXT.md). Consumed via an in-process
@@ -121,7 +138,7 @@ can't sign in on our consent form; if that ever matters, session-based consent i
   cross-references what it sends (method, path, query/body keys, permission) against the
   api plugin's route table and the matched controller's own source. Born from an audit
   that found five shipped param-name bugs; this is the drift detector the `upstream-drift`
-  workflow runs against new api releases (see CLAUDE.md's triage runbook).
+  workflow runs against new api releases (see CLAUDE.md's triage runbook). It also asserts route coverage: every api route is reached by some tool or listed in `$skippedRoutes` with a reason.
 - `tests/permission-gate.php` — the consent-screen permission check against real Grav +
   api-plugin classes (skips cleanly without a `.gravtest/` install).
 - `tests/oauth-flow.php` — drives the OAuth server through register → authorize →

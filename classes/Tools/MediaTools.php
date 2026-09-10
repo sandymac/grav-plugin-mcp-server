@@ -151,13 +151,14 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'manage_media_folder',
                     'title' => 'Manage Media Folder',
-                    'description' => 'Create, rename, or delete a subfolder in the site media directory. For rename, provide both the current path and the new path. [Requires: api.media.write]',
+                    'description' => 'Create, rename, or delete a subfolder in the site media directory, or set the display order of files within one. For rename, provide both the current path and the new path. For order, provide "order" as the filenames in the desired order ("path" "" means the media root); an empty list removes the custom order. [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'rename', 'delete'], 'description' => 'Action to perform'],
-                            'path' => ['type' => 'string', 'description' => 'Folder path (e.g. "images/2024"); the current path for rename'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'rename', 'delete', 'order'], 'description' => 'Action to perform'],
+                            'path' => ['type' => 'string', 'description' => 'Folder path (e.g. "images/2024"); the current path for rename; "" means the media root for order'],
                             'new_path' => ['type' => 'string', 'description' => 'New folder path (required for rename)'],
+                            'order' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Filenames in the desired display order (required for order action); unlisted files trail; an empty array removes the custom order'],
                         ],
                         'required' => ['action', 'path'],
                         'additionalProperties' => false,
@@ -192,14 +193,183 @@ final class MediaTools
                         ));
                     }
 
+                    if ($action === 'order') {
+                        if (!isset($args['order']) || !\is_array($args['order'])) {
+                            return ApiBridge::toolJson(['error' => 'order (an array of filenames) is required for order action']);
+                        }
+
+                        return ApiBridge::fromResponse($api->request(
+                            'POST',
+                            '/media/order',
+                            [],
+                            ['path' => $args['path'] ?? '', 'order' => $args['order']]
+                        ));
+                    }
+
                     if ($action !== 'delete') {
-                        return ApiBridge::toolError('Invalid action. Must be one of: create, rename, delete');
+                        return ApiBridge::toolError('Invalid action. Must be one of: create, rename, delete, order');
                     }
 
                     return ApiBridge::fromResponse(
                         $api->request('DELETE', '/media/folders/' . ApiBridge::path($args, 'path')),
                         successMessage: sprintf('Folder "%s" deleted.', $args['path'] ?? '')
                     );
+                },
+            ],
+
+            'get_media_meta' => [
+                'permission' => 'api.media.read',
+                'descriptor' => [
+                    'name' => 'get_media_meta',
+                    'title' => 'Get Media Metadata',
+                    'description' => 'Get a media file\'s metadata. Give "route" plus "filename" for a page\'s media; give "path" for site media. Returns a fields list (key/label/type/value for the managed keys) plus "extra" for any other keys in the sidecar. [Requires: api.media.read]',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'route' => ['type' => 'string', 'description' => 'Page route — requires "filename"'],
+                            'filename' => ['type' => 'string', 'description' => 'Filename to inspect (e.g. "photo.jpg") — used with "route"'],
+                            'path' => ['type' => 'string', 'description' => 'Relative path to a site media file, including filename (e.g. "images/photo.jpg")'],
+                        ],
+                        'additionalProperties' => false,
+                    ],
+                    'annotations' => ['readOnlyHint' => true],
+                ],
+                'handler' => static function (ApiBridge $api, array $args): array {
+                    if (!empty($args['route']) && !empty($args['path'])) {
+                        return ApiBridge::toolJson(['error' => 'Pass route (page media) or path (site media), not both']);
+                    }
+
+                    if (!empty($args['route'])) {
+                        if (empty($args['filename'])) {
+                            return ApiBridge::toolJson(['error' => 'filename is required when route is given']);
+                        }
+
+                        return ApiBridge::fromResponse($api->request(
+                            'GET',
+                            '/pages/' . ApiBridge::path($args) . '/media/' . ApiBridge::path($args, 'filename') . '/meta'
+                        ));
+                    }
+
+                    if (empty($args['path'])) {
+                        return ApiBridge::toolJson(['error' => 'path is required for site media, or route plus filename for page media']);
+                    }
+
+                    return ApiBridge::fromResponse($api->request('GET', '/media/meta', ['path' => $args['path']]));
+                },
+            ],
+
+            'update_media_meta' => [
+                'permission' => 'api.media.write',
+                'descriptor' => [
+                    'name' => 'update_media_meta',
+                    'title' => 'Update Media Metadata',
+                    'description' => 'Set or clear a media file\'s metadata. Target exactly one of: "route" plus "filename" (page media), "path" (single site media file), or "paths" (batch, up to 50 site media files, set only). For "set", "fields" is merged into the existing metadata: an empty string (or empty tag list) removes that key; keys outside the site-configured managed list (default alt, title, caption, description, tags) are ignored; "tags" accepts a list or comma string. "clear" resets the managed keys and works on one file at a time. [Requires: api.media.write]',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'action' => ['type' => 'string', 'enum' => ['set', 'clear'], 'description' => 'Action to perform'],
+                            'route' => ['type' => 'string', 'description' => 'Page route — requires "filename"'],
+                            'filename' => ['type' => 'string', 'description' => 'Filename to update (e.g. "photo.jpg") — used with "route"'],
+                            'path' => ['type' => 'string', 'description' => 'Relative path to a single site media file, including filename'],
+                            'paths' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Relative paths to up to 50 site media files, for batch "set"'],
+                            'fields' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Metadata fields to merge (required for "set")'],
+                        ],
+                        'required' => ['action'],
+                        'additionalProperties' => false,
+                    ],
+                    'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
+                ],
+                'handler' => static function (ApiBridge $api, array $args): array {
+                    $action = $args['action'] ?? null;
+
+                    $targets = array_filter([!empty($args['route']), !empty($args['path']), !empty($args['paths'])]);
+                    if (\count($targets) !== 1) {
+                        return ApiBridge::toolJson(['error' => 'Target exactly one of: route (with filename), path, or paths']);
+                    }
+
+                    if (!empty($args['route']) && empty($args['filename'])) {
+                        return ApiBridge::toolJson(['error' => 'filename is required when route is given']);
+                    }
+
+                    if (!empty($args['paths']) && $action === 'clear') {
+                        return ApiBridge::toolJson(['error' => 'clear works on one file at a time; use path (or route+filename), not paths']);
+                    }
+
+                    if ($action === 'set') {
+                        if (empty($args['fields'])) {
+                            return ApiBridge::toolJson(['error' => 'fields is required for set action']);
+                        }
+
+                        if (!empty($args['route'])) {
+                            return ApiBridge::fromResponse($api->request(
+                                'PATCH',
+                                '/pages/' . ApiBridge::path($args) . '/media/' . ApiBridge::path($args, 'filename') . '/meta',
+                                [],
+                                ['fields' => $args['fields']]
+                            ));
+                        }
+
+                        if (!empty($args['path'])) {
+                            return ApiBridge::fromResponse($api->request(
+                                'PATCH',
+                                '/media/meta',
+                                ['path' => $args['path']],
+                                ['fields' => $args['fields']]
+                            ));
+                        }
+
+                        // The MCP-facing name is "paths"; the batch endpoint reads "files".
+                        return ApiBridge::fromResponse($api->request(
+                            'POST',
+                            '/media/batch/meta',
+                            [],
+                            ['files' => $args['paths'], 'fields' => $args['fields']]
+                        ));
+                    }
+
+                    if ($action !== 'clear') {
+                        return ApiBridge::toolError('Invalid action. Must be one of: set, clear');
+                    }
+
+                    if (!empty($args['route'])) {
+                        return ApiBridge::fromResponse(
+                            $api->request('DELETE', '/pages/' . ApiBridge::path($args) . '/media/' . ApiBridge::path($args, 'filename') . '/meta'),
+                            successMessage: sprintf('Cleared metadata for "%s" on "%s".', (string) $args['filename'], (string) $args['route'])
+                        );
+                    }
+
+                    return ApiBridge::fromResponse(
+                        $api->request('DELETE', '/media/meta', ['path' => $args['path']]),
+                        successMessage: sprintf('Cleared metadata for "%s".', (string) $args['path'])
+                    );
+                },
+            ],
+
+            'rename_media' => [
+                'permission' => 'api.media.write',
+                'descriptor' => [
+                    'name' => 'rename_media',
+                    'title' => 'Rename Media',
+                    'description' => 'Rename or move a site media file (not page media). "new_path" may be in another folder — it is created if needed. The filename is sanitized and the source file\'s extension is always kept. Refuses to overwrite an existing file. [Requires: api.media.write]',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'path' => ['type' => 'string', 'description' => 'Current relative path, including filename (e.g. "images/old.jpg")'],
+                            'new_path' => ['type' => 'string', 'description' => 'New relative path, including filename (e.g. "images/2024/new.jpg")'],
+                        ],
+                        'required' => ['path', 'new_path'],
+                        'additionalProperties' => false,
+                    ],
+                    'annotations' => ['readOnlyHint' => false],
+                ],
+                'handler' => static function (ApiBridge $api, array $args): array {
+                    return ApiBridge::fromResponse($api->request(
+                        'POST',
+                        '/media/rename',
+                        [],
+                        // The MCP-facing names are path/new_path; the endpoint reads from/to.
+                        ['from' => $args['path'] ?? '', 'to' => $args['new_path'] ?? '']
+                    ));
                 },
             ],
         ];
