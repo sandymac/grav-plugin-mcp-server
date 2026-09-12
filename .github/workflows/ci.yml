@@ -30,9 +30,10 @@ jobs:
 
       - run: API_PLUGIN_DIR=/tmp/grav-plugin-api php tests/param-map.php
 
-      - run: git clone --depth 1 -b "$(sed -n 's/.*name: api, version: ">=\([0-9.]*\)".*/\1/p' blueprints.yaml)" https://github.com/getgrav/grav-plugin-api /tmp/grav-plugin-api-floor
-
-      - run: API_PLUGIN_DIR=/tmp/grav-plugin-api-floor php tests/param-map.php
+      - run: |
+          API_FLOOR="$(sed -n 's/.*name: api, version: ">=\([0-9.]*\)".*/\1/p' blueprints.yaml)"
+          git clone --depth 1 -b "$API_FLOOR" https://github.com/getgrav/grav-plugin-api /tmp/grav-plugin-api-floor
+          API_PLUGIN_DIR=/tmp/grav-plugin-api-floor php tests/param-map.php
 
   lint:
     runs-on: ubuntu-latest
