@@ -16,14 +16,8 @@ use Psr\Http\Message\ServerRequestInterface;
  * No SSE, no sessions, no batching — the MCP spec allows all three to be
  * absent for a stateless server (newer revisions have removed sessions and
  * batching from the protocol entirely), and mainstream clients (Claude Code,
- * MCP Inspector) work against exactly this.
- *
- * The response is a PSR-7 object handed back into Grav's request pipeline
- * (McpServerPlugin::onRequestHandlerInit), the same way the api plugin's
- * REST responses travel, rather than printed and exited. Grav then emits it
- * and arms shutdown(), so onShutdown fires after a tool call exactly as it
- * does after a REST call, and output compression and connection handling
- * apply unchanged.
+ * MCP Inspector) work against exactly this. Responses ride Grav's request
+ * pipeline — see DECISIONS.md #1 and McpServerPlugin::onRequestHandlerInit.
  */
 class McpServer
 {

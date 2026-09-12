@@ -13,7 +13,7 @@ Works with **hosted connectors** (built-in OAuth 2.1 authorization server with d
 
 ## Requirements
 
-- Grav 2.0.23+ (its `Uri::ip()` reads `$_SERVER`, which the OAuth throttles rely on)
+- Grav 2.0.24+ (what API plugin 1.0.30 requires; the `Uri::ip()` fix the OAuth throttles rely on landed in 2.0.23)
 - PHP 8.3+ (Grav 2 core's own floor)
 - [API plugin](https://github.com/getgrav/grav-plugin-api) **1.0.30 or newer**, installed and enabled, with at least one API key:
   `bin/plugin api keys:generate --user=admin --name="MCP"`

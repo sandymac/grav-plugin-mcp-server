@@ -22,11 +22,17 @@ jobs:
       - run: php tests/plugin-tools.php
 
       # param-map.php parses the api plugin as text, so a shallow clone is all it
-      # needs. Pinned to the last triaged release (tests/api-plugin.pin) so ci is
-      # deterministic; the upstream-drift workflow tracks new releases.
+      # needs. Run against both ends of the supported range: the pin (the last
+      # release triaged — deterministic, the upstream-drift workflow tracks newer
+      # ones) and the floor declared in blueprints.yaml (the oldest release a
+      # site may pair this plugin with).
       - run: git clone --depth 1 -b "$(cat tests/api-plugin.pin)" https://github.com/getgrav/grav-plugin-api /tmp/grav-plugin-api
 
       - run: API_PLUGIN_DIR=/tmp/grav-plugin-api php tests/param-map.php
+
+      - run: git clone --depth 1 -b "$(sed -n 's/.*name: api, version: ">=\([0-9.]*\)".*/\1/p' blueprints.yaml)" https://github.com/getgrav/grav-plugin-api /tmp/grav-plugin-api-floor
+
+      - run: API_PLUGIN_DIR=/tmp/grav-plugin-api-floor php tests/param-map.php
 
   lint:
     runs-on: ubuntu-latest
@@ -48,12 +54,17 @@ jobs:
           tools: phpstan
 
       # phpstan.neon resolves Grav / api-plugin / login-plugin symbols from a real
-      # install at .gravtest/grav-admin — recreate the local dev layout. Vendors are
-      # for symbol scanning only, hence --ignore-platform-reqs.
+      # install at .gravtest/grav-admin — recreate the local dev layout at the
+      # FLOOR pair (the Grav and api versions blueprints.yaml declares as minimum),
+      # which is also what the integration-flavoured tests below run against: a
+      # supported combination, not the pin's api on an older Grav. Vendors are for
+      # symbol scanning only, hence --ignore-platform-reqs.
       - run: |
-          git clone --depth 1 -b 2.0.23 https://github.com/getgrav/grav .gravtest/grav-admin
+          GRAV_FLOOR="$(sed -n 's/.*name: grav, version: ">=\([0-9.]*\)".*/\1/p' blueprints.yaml)"
+          API_FLOOR="$(sed -n 's/.*name: api, version: ">=\([0-9.]*\)".*/\1/p' blueprints.yaml)"
+          git clone --depth 1 -b "$GRAV_FLOOR" https://github.com/getgrav/grav .gravtest/grav-admin
           composer install -q -d .gravtest/grav-admin --no-dev --ignore-platform-reqs
-          git clone --depth 1 -b "$(cat tests/api-plugin.pin)" https://github.com/getgrav/grav-plugin-api .gravtest/grav-admin/user/plugins/api
+          git clone --depth 1 -b "$API_FLOOR" https://github.com/getgrav/grav-plugin-api .gravtest/grav-admin/user/plugins/api
           composer install -q -d .gravtest/grav-admin/user/plugins/api --no-dev --ignore-platform-reqs
           git clone --depth 1 https://github.com/getgrav/grav-plugin-login .gravtest/grav-admin/user/plugins/login
           composer install -q -d .gravtest/grav-admin/user/plugins/login --no-dev --ignore-platform-reqs
