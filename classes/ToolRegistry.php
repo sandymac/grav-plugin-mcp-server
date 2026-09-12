@@ -281,10 +281,13 @@ class ToolRegistry
                         'mcp_plugin_version' => McpServer::VERSION,
                         'mcp_plugin_build' => McpServer::build(),
                         'api_plugin_version' => $this->grav !== null ? ApiBridge::apiPluginVersion($this->grav) : null,
+                        // Grav 2.1+: null where the key does not exist (older Grav), so a
+                        // client can tell "off" from "not available".
+                        'markdown_output' => $this->grav?->offsetGet('config')?->get('system.pages.markdown_output.enabled'),
                     ]),
                     'descriptor' => [
                         'name' => 'site_info',
-                        'description' => 'Basic information about this Grav site: title, Grav version, MCP plugin version.',
+                        'description' => 'Basic information about this Grav site: title, Grav version, MCP plugin version, api plugin version, and markdown_output — whether the Grav 2.1 Markdown output feature is on (any page can then be read as rendered Markdown at its URL plus ".md"; null when this Grav predates the feature).',
                         'inputSchema' => [
                             'type' => 'object',
                             'properties' => new \stdClass(),
