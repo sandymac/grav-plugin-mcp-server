@@ -202,6 +202,17 @@ class McpServerPlugin extends Plugin
     /** The MCP endpoint: setting the response ends the pipeline before pages are built. */
     public function onRequestHandlerInit(RequestHandlerEvent $event): void
     {
+        // The request setup the api plugin gives its own REST requests (api.php,
+        // onPluginsInitialized), which it skips here because the URL is not
+        // under its base. Pages go off so a controller's enablePages() builds
+        // the index lazily — nothing else will, since this handler answers
+        // before PagesProcessor — and the object cache stays warm even when the
+        // site's cache is switched off, per the api plugin's own setting.
+        $this->grav['pages']->disablePages();
+        if ((bool) $this->config->get('plugins.api.force_cache', true)) {
+            $this->grav['cache']->setEnabled(true);
+        }
+
         $event->setResponse((new McpServer($this->grav))->handle($event->getRequest()));
     }
 
