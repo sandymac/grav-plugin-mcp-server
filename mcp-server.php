@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Grav\Plugin;
 
 use Grav\Common\Plugin;
+use Grav\Common\Processors\Events\RequestHandlerEvent;
 use Grav\Plugin\McpServer\McpServer;
 use Grav\Plugin\McpServer\OAuth\OAuthServer;
 
@@ -170,9 +171,15 @@ class McpServerPlugin extends Plugin
         $this->mcpRoute = '/' . trim((string) $this->config->get('plugins.mcp-server.route', '/mcp'), '/');
         $this->path = rtrim((string) $this->grav['uri']->path(), '/') ?: '/';
 
-        if ($this->path === $this->mcpRoute || $this->isOauthPath()) {
+        if ($this->path === $this->mcpRoute) {
+            // Answer from the request pipeline, where the api plugin's REST
+            // router also runs: Grav emits the response and arms onShutdown.
             $this->enable([
-                'onPagesInitialized' => ['serveMcp', 100000],
+                'onRequestHandlerInit' => ['onRequestHandlerInit', 99000],
+            ]);
+        } elseif ($this->isOauthPath()) {
+            $this->enable([
+                'onPagesInitialized' => ['serveOauth', 100000],
             ]);
         }
     }
@@ -192,16 +199,30 @@ class McpServerPlugin extends Plugin
             ], true);
     }
 
-    /**
-     * Handles the MCP or OAuth request and terminates; never falls through to
-     * page rendering.
-     */
-    public function serveMcp(): void
+    /** The MCP endpoint: setting the response ends the pipeline before pages are built. */
+    public function onRequestHandlerInit(RequestHandlerEvent $event): void
     {
-        if ($this->path === $this->mcpRoute) {
-            (new McpServer($this->grav))->run();
+        // This URL is not under the api plugin's base, so the request setup it
+        // gives REST requests never ran here — and pages must be disabled first
+        // or a controller's enablePages() is a no-op and the index is never
+        // built, since we answer before PagesProcessor.
+        $this->grav['pages']->disablePages();
+        if ((bool) $this->config->get('plugins.api.force_cache', true)) {
+            $this->grav['cache']->setEnabled(true);
         }
 
+        $event->setResponse((new McpServer($this->grav))->handle($event->getRequest()));
+    }
+
+    /**
+     * The OAuth endpoints (metadata, DCR, consent, token, revoke) respond and
+     * terminate; never falls through to page rendering.
+     * ponytail: browser redirects and HTML consent still print-and-exit like
+     * before; port them to PSR-7 responses if anything ever needs onShutdown
+     * after consent.
+     */
+    public function serveOauth(): void
+    {
         (new OAuthServer($this->grav, $this->mcpRoute))->handle($this->path);
     }
 }

@@ -232,6 +232,24 @@ final class SystemTools
                 },
             ],
 
+            'clear_twig_content_events' => [
+                'permission' => 'api.system.write',
+                'descriptor' => [
+                    'name' => 'clear_twig_content_events',
+                    'title' => 'Clear Twig Content Events',
+                    'description' => 'Empty the Twig-in-Content diagnostics log — the record of tokens the sandbox refused in page content that run_reports ("twig_content_scan", "twig_content_page") reads. Use it once the flagged pages have been dealt with; the log is one site-wide record every admin shares, so clearing it removes the history for everyone. Returns the number of events cleared. [Requires: api.system.write]',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => new \stdClass(),
+                        'additionalProperties' => false,
+                    ],
+                    'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true, 'idempotentHint' => true],
+                ],
+                'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
+                    $api->request('DELETE', '/reports/twig-content/events')
+                ),
+            ],
+
             'get_audit_log' => [
                 'permission' => 'api.super',
                 'descriptor' => [

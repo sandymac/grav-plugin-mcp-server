@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Grav\Plugin\McpServer;
 
 use Grav\Common\Grav;
+use Grav\Framework\Psr7\Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Minimal stateless MCP server over Streamable HTTP.
@@ -13,12 +16,13 @@ use Grav\Common\Grav;
  * No SSE, no sessions, no batching — the MCP spec allows all three to be
  * absent for a stateless server (newer revisions have removed sessions and
  * batching from the protocol entirely), and mainstream clients (Claude Code,
- * MCP Inspector) work against exactly this.
+ * MCP Inspector) work against exactly this. Responses ride Grav's request
+ * pipeline — see DECISIONS.md #1 and McpServerPlugin::onRequestHandlerInit.
  */
 class McpServer
 {
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
-    public const string VERSION = '1.3.1';
+    public const string VERSION = '1.3.2';
 
     /**
      * The commit a release zip was built from — git archive substitutes it
@@ -33,7 +37,7 @@ class McpServer
     }
 
     /** Matches the api dependency floor in blueprints.yaml — smoke asserts they agree. */
-    public const string MIN_API_VERSION = '1.0.22';
+    public const string MIN_API_VERSION = '1.0.30';
     public const array SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'];
 
     private ToolRegistry $tools;
@@ -46,37 +50,41 @@ class McpServer
         $this->resources = new Resources($grav);
     }
 
-    /** Entry point from the plugin: emits an HTTP response and exits. */
-    public function run(): never
+    /** Entry point from the plugin: one HTTP request in, one PSR-7 response out. */
+    public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        if ($request->getMethod() !== 'POST') {
             // Stateless: no SSE stream to GET, no session to DELETE.
-            header('Allow: POST');
-            $this->respond(405, $this->error(null, -32600, 'MCP endpoint accepts POST only'));
+            return $this->respond(405, $this->error(null, -32600, 'MCP endpoint accepts POST only'), ['Allow' => 'POST']);
         }
 
-        if (!$this->authenticate()) {
+        if (!$this->authenticate($request)) {
             // resource_metadata points OAuth-capable clients (claude.ai) at
             // the discovery document that starts their authorization flow.
-            header($this->wwwAuthenticate());
-            $this->respond(401, $this->error(null, -32001, 'Unauthorized: pass a Grav API key as "Authorization: Bearer grav_..." or connect via OAuth'));
+            return $this->respond(
+                401,
+                $this->error(null, -32001, 'Unauthorized: pass a Grav API key as "Authorization: Bearer grav_..." or connect via OAuth'),
+                ['WWW-Authenticate' => $this->wwwAuthenticate()]
+            );
         }
 
-        $message = json_decode((string) file_get_contents('php://input'), true);
+        // RequestProcessor has already decoded an application/json body into
+        // the parsed body; fall back to the raw stream for a client that
+        // omits the content type.
+        $message = $request->getParsedBody();
+        if (!is_array($message)) {
+            $message = json_decode((string) $request->getBody(), true);
+        }
 
         if (!is_array($message) || array_is_list($message)) {
-            $this->respond(400, $this->error(null, -32700, 'Expected a single JSON-RPC message object (batching not supported)'));
+            return $this->respond(400, $this->error(null, -32700, 'Expected a single JSON-RPC message object (batching not supported)'));
         }
 
         $response = $this->dispatch($message);
 
-        if ($response === null) {
-            http_response_code(202); // notification: acknowledged, no body
-            $this->stripPlantedSessionCookie();
-            exit;
-        }
-
-        $this->respond(200, $response);
+        return $response === null
+            ? $this->respond(202, null) // notification: acknowledged, no body
+            : $this->respond(200, $response);
     }
 
     /**
@@ -201,7 +209,7 @@ class McpServer
      * Bearer auth against grav-plugin-api's key store. Fails closed: no Grav
      * container, no api plugin, or no valid key means no access.
      */
-    private function authenticate(): bool
+    private function authenticate(ServerRequestInterface $request): bool
     {
         if ($this->grav === null) {
             return false;
@@ -221,7 +229,6 @@ class McpServer
         // ApiKeyAuthenticator only reads X-API-Key (Authorization: Bearer is
         // JWT-only in the api plugin), while MCP clients send Bearer — so map
         // the Bearer token onto the header it does read.
-        $request = $this->grav['request'];
         $token = self::bearerToken((string) $request->getHeaderLine('Authorization'));
         if ($token !== null) {
             $request = $request->withHeader('X-API-Key', $token);
@@ -249,9 +256,10 @@ class McpServer
         return stripos($header, 'Bearer ') === 0 ? trim(substr($header, 7)) : null;
     }
 
+    /** WWW-Authenticate header value for a 401. */
     private function wwwAuthenticate(): string
     {
-        $header = 'WWW-Authenticate: Bearer realm="mcp"';
+        $header = 'Bearer realm="mcp"';
 
         if ($this->grav !== null && (bool) $this->grav['config']->get('plugins.mcp-server.oauth.enabled', true)) {
             $base = rtrim((string) $this->grav['uri']->rootUrl(true), '/');
@@ -272,13 +280,18 @@ class McpServer
         return ['jsonrpc' => '2.0', 'id' => $id, 'error' => ['code' => $code, 'message' => $message]];
     }
 
-    private function respond(int $status, array $body): never
+    /** @param array<string, string> $headers */
+    private function respond(int $status, ?array $body, array $headers = []): ResponseInterface
     {
-        http_response_code($status);
-        header('Content-Type: application/json');
+        // PHP queued the session cookie during boot; strip it now, before Grav
+        // sends the headers along with this response.
         $this->stripPlantedSessionCookie();
-        echo json_encode($body, JSON_UNESCAPED_SLASHES);
-        exit;
+
+        if ($body === null) {
+            return new Response($status, $headers, '');
+        }
+
+        return new Response($status, $headers + ['Content-Type' => 'application/json'], json_encode($body, JSON_UNESCAPED_SLASHES));
     }
 
     /**
@@ -296,7 +309,8 @@ class McpServer
      * Every MCP call is bearer-only and stateless — there's no SSO hand-off
      * parking state in the session the way the api plugin's stateful
      * endpoints do, so unlike the source method there's no exemption to
-     * carry over here.
+     * carry over here. Runs before the response is handed to Grav, while the
+     * queued header can still be removed.
      */
     private function stripPlantedSessionCookie(): void
     {

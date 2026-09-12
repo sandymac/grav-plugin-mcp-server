@@ -13,14 +13,16 @@ Works with **hosted connectors** (built-in OAuth 2.1 authorization server with d
 
 ## Requirements
 
-- Grav 2.0.23+ (its `Uri::ip()` reads `$_SERVER`, which the OAuth throttles rely on)
+- Grav 2.0.24+ (what API plugin 1.0.30 requires; the `Uri::ip()` fix the OAuth throttles rely on landed in 2.0.23)
 - PHP 8.3+ (Grav 2 core's own floor)
-- [API plugin](https://github.com/getgrav/grav-plugin-api) **1.0.22 or newer**, installed and enabled, with at least one API key:
+- [API plugin](https://github.com/getgrav/grav-plugin-api) **1.0.30 or newer**, installed and enabled, with at least one API key:
   `bin/plugin api keys:generate --user=admin --name="MCP"`
 
 Tools map 1:1 onto API plugin endpoints, so an older API plugin 404s on tools backed by
 newer endpoints. GPM enforces the version floor; a git clone doesn't — the plugin then
-logs a warning at client handshake, and `site_info` reports `api_plugin_version`.
+logs a warning at client handshake, and `site_info` reports `api_plugin_version`. API
+plugin 1.0.31 and later require Grav 2.1; a Grav 2.0 site stays on 1.0.30, which is the
+floor here for exactly that reason.
 
 ## Installation
 
@@ -133,7 +135,7 @@ curl -s https://grav.example.com/mcp \
 
 ## Status
 
-62 tools across 12 domains (pages, multilingual, translations, media, config, users, GPM, system, dashboard, webhooks, blueprints, plugins) plus `site_info`, 5 resources, and 7 prompts, tracking the API plugin's REST surface. Every tool call dispatches in-process through the API plugin's own router, so its permission scopes, page ACLs, ETag conflict handling, audit trail, and rate limiting all apply unchanged. A connected client only sees the tools its key scopes *and* its account's permissions allow — a limited bot account advertises a correspondingly small tool list. Validated end-to-end on a live deployment as both a claude.ai custom connector and a Claude Code HTTP server.
+63 tools across 12 domains (pages, multilingual, translations, media, config, users, GPM, system, dashboard, webhooks, blueprints, plugins) plus `site_info`, 5 resources, and 7 prompts, tracking the API plugin's REST surface. Every tool call dispatches in-process through the API plugin's own router, so its permission scopes, page ACLs, ETag conflict handling, audit trail, and rate limiting all apply unchanged. A connected client only sees the tools its key scopes *and* its account's permissions allow — a limited bot account advertises a correspondingly small tool list. Validated end-to-end on a live deployment as both a claude.ai custom connector and a Claude Code HTTP server.
 
 ## Development
 
