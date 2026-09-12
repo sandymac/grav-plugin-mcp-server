@@ -64,4 +64,6 @@ jobs:
       # (both skip cleanly when .gravtest is absent, e.g. in the test job).
       - run: php tests/permission-gate.php
 
+      - run: php tests/transport.php
+
       - run: php tests/oauth-flow.php

@@ -10,6 +10,12 @@ read its rationale first — most were validated against a live deployment.
    server in the MCP revisions we support, and newer revisions (2026-07-28) removed
    sessions and batching from the protocol outright. claude.ai and Claude Code's HTTP
    transports work against exactly this.
+   **Responses ride Grav's request pipeline** (2026-09-12): `McpServer::handle()` returns a
+   PSR-7 response that the plugin sets on `onRequestHandlerInit`, the position where the api
+   plugin's REST router runs, rather than printing and exiting — so Grav emits it, arms
+   `shutdown()`, and `onShutdown` fires after a tool call as it does after a REST call. The OAuth
+   browser flows (redirects, HTML consent) still respond-and-exit; port them if anything ever
+   needs `onShutdown` after consent. `tests/transport.php` is the check.
 2. **Translation layer over grav-plugin-api**: the api plugin is a hard dependency, and
    this plugin duplicates none of its logic. Auth reuses `ApiKeyAuthenticator` /
    `ApiKeyManager`; every tool dispatches in-process through the api plugin's own
