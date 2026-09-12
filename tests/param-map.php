@@ -168,9 +168,8 @@ $skippedRoutes = [
     'GET /gpm/repository/themes' => 'GPM extra (search_packages covers discovery)',
     'GET /gpm/repository/{slug}' => 'GPM extra (search_packages covers discovery)',
     'POST /gpm/direct-install' => 'GPM extra (URL/zip install)',
-    // Twig-content writes: see DECISIONS.md #4 and getgrav/grav-plugin-api#35.
+    // Twig-content allowlist add: see DECISIONS.md #4.
     'POST /reports/twig-content/allowlist' => 'widens the Twig sandbox; update_config on the security scope covers it with ETag/env support',
-    'DELETE /reports/twig-content/events' => 'destructive route behind a read permission — held for getgrav/grav-plugin-api#35',
     // Reached at runtime (FastRoute static-first) by get_config/update_config/
     // get_blueprint with scope "accounts"; the sampler never generates that value.
     'GET /config/accounts' => 'covered at runtime; sampler artifact',

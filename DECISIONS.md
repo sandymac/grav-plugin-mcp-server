@@ -27,7 +27,7 @@ read its rationale first — most were validated against a live deployment.
    and the public auth/login flows. Tool names and schemas may diverge from grav-mcp
    wherever the API warrants it.
 
-   **Skips, as of api 1.0.28 (2026-09-09).** The machine-checked list is `$skippedRoutes` in
+   **Skips, as of api 1.0.32 (2026-09-12).** The machine-checked list is `$skippedRoutes` in
    `tests/param-map.php`, one reason per route; param-map fails when a route is neither reached
    by a tool nor listed there. The categories and judgement calls: public auth flows (`/auth/*`,
    invitation accept); binary downloads (thumbnails, raw media, backup download, audit export);
@@ -35,11 +35,12 @@ read its rationale first — most were validated against a live deployment.
    dictionaries, `/data/resolve`, `/blueprint-files`, `/ping`, `/systeminfo`); Admin Next
    preferences and branding; per-user 2FA (setup returns TOTP secrets) and avatars (multipart);
    demo mode; GPM repository browsing, changelog and direct-install (`search_packages` and
-   `manage_packages` cover the workflow); the internal `GET /mcp/tools`; and the two Twig-content
-   writes — the allowlist add, because `update_config` on the `security` scope already covers it
-   with ETag and environment support, and the events clear, held for
-   [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35) (a
-   destructive route behind a read permission). `GET|PATCH /config/accounts` and
+   `manage_packages` cover the workflow); the internal `GET /mcp/tools`; and the Twig-content
+   allowlist add, because `update_config` on the `security` scope already covers it with ETag and
+   environment support. (The Twig-content events clear sat here too while it was a destructive
+   route behind `api.reports.read` — [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35);
+   api 1.0.30 moved its gate to `api.system.write` and it became `clear_twig_content_events` in
+   1.3.2, which is why the api floor is 1.0.30.) `GET|PATCH /config/accounts` and
    `GET /blueprints/config/accounts` are reached at runtime by the config and blueprint tools with
    scope `accounts`; they sit in the skip list only because param-map's sampler never generates
    that value.
