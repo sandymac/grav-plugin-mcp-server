@@ -148,6 +148,10 @@ final class BlueprintsTools
             }
         }
 
+        if (strlen((string) $args['content_base64']) > MediaTools::MAX_BASE64_BYTES) {
+            return ApiBridge::toolError('content_base64 exceeds the 64 MiB per-file limit.');
+        }
+
         $content = base64_decode((string) $args['content_base64'], true);
         if ($content === false) {
             return ApiBridge::toolError('content_base64 is not valid base64.');

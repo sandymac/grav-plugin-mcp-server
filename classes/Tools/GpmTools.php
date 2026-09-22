@@ -37,6 +37,12 @@ final class GpmTools
                     $type = (string) ($args['type'] ?? '');
                     $slug = (string) ($args['slug'] ?? '');
 
+                    // $type goes into the path unencoded — allowlist it here so
+                    // both the /gpm/{type} and /gpm/{type}/{slug} paths are covered.
+                    if ($type !== '' && $type !== 'plugins' && $type !== 'themes') {
+                        return ApiBridge::toolError('Invalid type. Must be one of: plugins, themes');
+                    }
+
                     return match ($args['view'] ?? 'installed') {
                         'installed' => $type === ''
                             ? ApiBridge::toolJson(['error' => 'type is required for the installed view'])

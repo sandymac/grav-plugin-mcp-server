@@ -169,8 +169,14 @@ class McpServer
             return $this->result($id, $this->tools->call($name, (array) ($params['arguments'] ?? [])));
         } catch (\Throwable $e) {
             // Tool execution failures are results, not protocol errors (MCP spec).
+            // The message stays fixed: a TypeError's text carries the server's
+            // absolute paths, so the detail goes to the log instead.
+            if ($this->grav !== null) {
+                $this->grav['log']->error(sprintf('mcp-server tool %s failed: %s', $name, $e));
+            }
+
             return $this->result($id, [
-                'content' => [['type' => 'text', 'text' => $e->getMessage()]],
+                'content' => [['type' => 'text', 'text' => "Tool {$name} failed; the site log has the details."]],
                 'isError' => true,
             ]);
         }
@@ -291,7 +297,12 @@ class McpServer
             return new Response($status, $headers, '');
         }
 
-        return new Response($status, $headers + ['Content-Type' => 'application/json'], json_encode($body, JSON_UNESCAPED_SLASHES));
+        // Tool results can carry a freshly minted API key or invitation token.
+        return new Response(
+            $status,
+            $headers + ['Content-Type' => 'application/json', 'Cache-Control' => 'no-store'],
+            json_encode($body, JSON_UNESCAPED_SLASHES)
+        );
     }
 
     /**

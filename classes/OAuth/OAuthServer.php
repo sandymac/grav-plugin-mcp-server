@@ -78,13 +78,19 @@ class OAuthServer
             $this->json(200, self::protectedResourceMetadata($base, $this->route, self::supportedScopes()));
         }
 
-        match ($path) {
-            $this->route . '/oauth/register' => $this->register(),
-            $this->route . '/oauth/authorize' => $this->authorize($base),
-            $this->route . '/oauth/token' => $this->token(),
-            $this->route . '/oauth/revoke' => $this->revoke(),
-            default => $this->json(404, ['error' => 'not_found']),
-        };
+        try {
+            match ($path) {
+                $this->route . '/oauth/register' => $this->register(),
+                $this->route . '/oauth/authorize' => $this->authorize($base),
+                $this->route . '/oauth/token' => $this->token(),
+                $this->route . '/oauth/revoke' => $this->revoke(),
+                default => $this->json(404, ['error' => 'not_found']),
+            };
+        } catch (\JsonException) {
+            // A request parameter that will not JSON-encode (invalid UTF-8) —
+            // the consent form's HMAC covers one, so fail closed, not 500.
+            $this->json(400, ['error' => 'invalid_request', 'error_description' => 'Request parameters must be valid UTF-8']);
+        }
     }
 
     /**
@@ -292,7 +298,15 @@ class OAuthServer
         if (!is_array($uris) || $uris === []) {
             $this->rejectRegistration('invalid_redirect_uri', 'redirect_uris is required', $raw);
         }
+        // The store is decoded on every OAuth request, so unbounded URIs let an
+        // unauthenticated caller inflate it.
+        if (count($uris) > 10) {
+            $this->rejectRegistration('invalid_redirect_uri', 'at most 10 redirect_uris are accepted', $raw);
+        }
         foreach ($uris as $uri) {
+            if (is_string($uri) && strlen($uri) > 512) {
+                $this->rejectRegistration('invalid_redirect_uri', 'a redirect_uri may be at most 512 bytes', $raw);
+            }
             if (!is_string($uri) || !$this->redirectUriAllowed($uri)) {
                 $this->rejectRegistration('invalid_redirect_uri', sprintf(
                     'redirect_uri %s is not allowed: must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts',
@@ -752,7 +766,9 @@ class OAuthServer
     private function sign(array $params, int $ts): string
     {
         $salt = (string) $this->grav['config']->get('security.salt');
-        return hash_hmac('sha256', $ts . "\n" . json_encode($this->formParams($params)), $salt);
+        // THROW, not the default false: false concatenates as "" and the MAC
+        // would then cover only the timestamp. handle() turns it into a 400.
+        return hash_hmac('sha256', $ts . "\n" . json_encode($this->formParams($params), JSON_THROW_ON_ERROR), $salt);
     }
 
     private function renderConsent(array $client, array $params, ?string $error): never
@@ -762,7 +778,8 @@ class OAuthServer
 
         $site = $e($this->grav['config']->get('site.title', 'Grav'));
         $name = $e($client['client_name'] ?? 'MCP client');
-        $host = $e((string) (parse_url($params['redirect_uri'], PHP_URL_HOST) ?? ''));
+        // The full URI, not just the host: two registrations can share a host.
+        $redirect = $e($params['redirect_uri']);
         $errorHtml = $error !== null ? '<p class="error">' . $e($error) . '</p>' : '';
 
         // Show what approval hands over: the granted (recognized) scopes — the
@@ -822,7 +839,7 @@ class OAuthServer
 
         $this->html(200, <<<HTML
             <h1>{$site}</h1>
-            <p><strong>{$name}</strong> ({$host}) is requesting MCP access to this site.</p>
+            <p><strong>{$name}</strong> ({$redirect}) is requesting MCP access to this site.</p>
             <form method="post" autocomplete="off">
               {$hidden}
               {$grants}
