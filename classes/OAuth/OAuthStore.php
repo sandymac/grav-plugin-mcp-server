@@ -281,10 +281,10 @@ class OAuthStore
         // file_put_contents writes as an empty file and reports as 0, not false.
         try {
             $json = json_encode($this->data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
+        } catch (\JsonException $e) {
             // A server-side failure, not a client one: keep it out of the
             // JsonException → 400 path in OAuthServer::handle().
-            throw new RuntimeException(sprintf('Unable to encode "%s": %s', $this->file, $e->getMessage()), 0, $e);
+            throw new \RuntimeException(sprintf('Unable to encode "%s": %s', $this->file, $e->getMessage()), 0, $e);
         }
 
         $tmp = $this->file . '.tmp';
