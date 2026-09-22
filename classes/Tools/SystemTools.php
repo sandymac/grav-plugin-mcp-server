@@ -251,11 +251,13 @@ final class SystemTools
             ],
 
             'get_audit_log' => [
-                'permission' => 'api.super',
+                // AuditController's routes share requireAuditAccess(): requireSuper()
+                // (the 'admin.super' scope cap) then isSuperAdmin() — api 1.0.38+.
+                'permission' => 'admin.super',
                 'descriptor' => [
                     'name' => 'get_audit_log',
                     'title' => 'Get Audit Log',
-                    'description' => 'The api plugin\'s audit trail (logins, content edits, user and config changes). Off by default — "events" and "facets" return 404 when `plugins.api.audit.enabled` is false and 503 when the server lacks SQLite; use "status" first. "facets" lists the distinct event names and actors for filtering. Super-admin only. [Requires: api.super]',
+                    'description' => 'The api plugin\'s audit trail (logins, content edits, user and config changes). Off by default — "events" and "facets" return 404 when `plugins.api.audit.enabled` is false and 503 when the server lacks SQLite; use "status" first. "facets" lists the distinct event names and actors for filtering. Super-admin only. [Requires: admin.super]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -314,7 +316,7 @@ final class SystemTools
                 'descriptor' => [
                     'name' => 'manage_environments',
                     'title' => 'Manage Environments',
-                    'description' => 'Create or delete a `user/env/<name>/` folder for environment-scoped configuration overrides (used by update_config\'s `environment` arg). Environments are not created implicitly — clients must opt in. Delete removes the folder recursively; the api refuses to delete the environment currently serving the request. [Requires: api.config.write]',
+                    'description' => 'Create or delete a `user/env/<name>/` folder for environment-scoped configuration overrides (used by update_config\'s `environment` arg). Environments are not created implicitly — clients must opt in. Delete removes the folder recursively; the api refuses to delete the environment currently serving the request. Create needs api.config.write; delete is super-only from api plugin 1.0.38 (the folder can hold system and security overrides only a super user may write). [Requires: api.config.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [

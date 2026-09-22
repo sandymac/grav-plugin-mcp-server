@@ -22,7 +22,7 @@ use Psr\Http\Message\ServerRequestInterface;
 class McpServer
 {
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
-    public const string VERSION = '1.3.2';
+    public const string VERSION = '1.3.3';
 
     /**
      * The commit a release zip was built from — git archive substitutes it

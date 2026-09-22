@@ -263,7 +263,7 @@ final class UsersTools
                 'descriptor' => [
                     'name' => 'manage_invitations',
                     'title' => 'Manage Invitations',
-                    'description' => 'List, create, delete, or resend a user invitation. For "create": "email" is required; returns the raw token and an accept link — hand the link to the invitee. Only one pending invitation per email is kept; a new one replaces it. "expiration" is in seconds and defaults to 7 days; values under 300 fall back to the default. Callers who are not super-admin have "groups" dropped and any super flag in "access" stripped silently. "resend" 404s for an expired invitation and 422s when site email isn\'t configured. "list" also purges expired invitations. [Requires: api.users.write]',
+                    'description' => 'List, create, delete, or resend a user invitation. For "create": "email" is required; returns the raw token and an accept link — hand the link to the invitee. Only one pending invitation per email is kept; a new one replaces it. "expiration" is in seconds and defaults to 7 days; values under 300 fall back to the default and api plugin 1.0.38+ caps it at 30 days. Callers who are not super-admin have "groups" dropped and any super flag in "access" stripped silently. "resend" 404s for an expired invitation and 422s when site email isn\'t configured. "list" also purges expired invitations. [Requires: api.users.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [

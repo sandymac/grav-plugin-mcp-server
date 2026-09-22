@@ -144,9 +144,15 @@ class ToolRegistry
 
         $resolver = $this->resolver ??= new \Grav\Plugin\Api\PermissionResolver();
 
-        // api.super is authority everywhere in the api plugin; honour it here too.
-        return $resolver->resolve($this->user, $permission) === true
-            || $resolver->resolveExact($this->user, 'api.super') === true;
+        // Super is an explicit tier, never inherited from a blanket `admin: true`
+        // or `api: true` grant (api 1.0.36+ hasPermission()); everything else
+        // inherits. api.super is authority everywhere in the api plugin; honour
+        // it here too.
+        $held = $permission === 'admin.super' || $permission === 'api.super'
+            ? $resolver->resolveExact($this->user, $permission)
+            : $resolver->resolve($this->user, $permission);
+
+        return $held === true || $resolver->resolveExact($this->user, 'api.super') === true;
     }
 
     /**
