@@ -98,6 +98,12 @@ class OAuthStore
     /** Fetch and delete: authorization codes are single-use. */
     public function takeCode(string $hash): ?array
     {
+        // Unknown hash: answer from the loaded snapshot, so an unauthenticated
+        // POST of garbage never takes the lock and rewrites the file.
+        if (!isset($this->data['codes'][$hash])) {
+            return null;
+        }
+
         $code = $this->mutate(function () use ($hash): ?array {
             $code = $this->data['codes'][$hash] ?? null;
             unset($this->data['codes'][$hash]);
@@ -124,6 +130,11 @@ class OAuthStore
      */
     public function takeRefresh(string $hash): ?array
     {
+        // Unknown hash: see takeCode().
+        if (!isset($this->data['refresh_tokens'][$hash])) {
+            return null;
+        }
+
         $token = $this->mutate(function () use ($hash): ?array {
             $token = $this->data['refresh_tokens'][$hash] ?? null;
             if (is_array($token) && empty($token['used'])) {
@@ -265,10 +276,19 @@ class OAuthStore
         $this->ensureDir();
 
         // A silent write failure would truncate single-use codes and refresh
-        // tokens, so fail loudly and leave the previous file intact.
+        // tokens, so fail loudly and leave the previous file intact. Encode
+        // before touching the filesystem: a failed encode returns false, which
+        // file_put_contents writes as an empty file and reports as 0, not false.
+        try {
+            $json = json_encode($this->data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            // A server-side failure, not a client one: keep it out of the
+            // JsonException → 400 path in OAuthServer::handle().
+            throw new \RuntimeException(sprintf('Unable to encode "%s": %s', $this->file, $e->getMessage()), 0, $e);
+        }
+
         $tmp = $this->file . '.tmp';
-        if (file_put_contents($tmp, json_encode($this->data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) === false
-            || !rename($tmp, $this->file)) {
+        if (file_put_contents($tmp, $json) === false || !rename($tmp, $this->file)) {
             @unlink($tmp);
             throw new \RuntimeException(sprintf('Unable to write "%s"', $this->file));
         }

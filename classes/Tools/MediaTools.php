@@ -14,6 +14,11 @@ use Nyholm\Psr7\UploadedFile;
  */
 final class MediaTools
 {
+    /** Upload bounds, enforced before base64_decode so a payload is never materialised twice. */
+    public const int MAX_UPLOAD_FILES = 20;
+    /** Base64 length that decodes to the api plugin's 64 MiB per-file cap. */
+    public const int MAX_BASE64_BYTES = 90_000_000;
+
     /** @return array<string, array{descriptor: array, permission: ?string, handler: callable}> */
     public static function tools(): array
     {
@@ -391,6 +396,7 @@ final class MediaTools
                 'additionalProperties' => false,
             ],
             'minItems' => 1,
+            'maxItems' => self::MAX_UPLOAD_FILES,
             'description' => 'Array of files to upload',
         ];
     }
@@ -409,9 +415,16 @@ final class MediaTools
      */
     private static function uploadedFiles(array $files): array
     {
+        if (count($files) > self::MAX_UPLOAD_FILES) {
+            throw new \InvalidArgumentException(sprintf('At most %d files per upload.', self::MAX_UPLOAD_FILES));
+        }
+
         $out = [];
         foreach ($files as $file) {
             $filename = (string) ($file['filename'] ?? '');
+            if (strlen((string) ($file['content_base64'] ?? '')) > self::MAX_BASE64_BYTES) {
+                throw new \InvalidArgumentException(sprintf('content_base64 for "%s" exceeds the 64 MiB per-file limit.', $filename));
+            }
             $content = base64_decode((string) ($file['content_base64'] ?? ''), true);
             if ($content === false) {
                 throw new \InvalidArgumentException(sprintf('content_base64 for "%s" is not valid base64.', $filename));

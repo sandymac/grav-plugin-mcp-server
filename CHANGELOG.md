@@ -1,3 +1,15 @@
+# v1.3.3
+## 2026-09-22
+
+1. [](#bugfix)
+    * `manage_webhook` sends `enabled` instead of `active`, which is the field the api plugin's webhook manager reads. Since 1.3.0 a webhook created or updated with `active: false` stayed enabled, because the api silently ignored the unknown key. param-map could not catch it — the webhook body is one of the request sides it skips as opaque; the api plugin's now-complete OpenAPI spec (1.0.38) did.
+    * `get_audit_log` declares `admin.super`, the gate api plugin 1.0.38 puts on every audit route (the `admin.super` API-key scope cap, then an `api.super` account), instead of `api.super`. Before 1.0.38 the audit routes checked `api.super` directly, so a key scoped to `api.super` could read the audit trail; on 1.0.38 that key is refused, and the tool's visibility and `[Requires: …]` hint now say so. An unscoped key on an `api.super` account is unaffected.
+    * Super-only tools (`clear_log`, `manage_groups`, `update_site_dashboard_layout`, `get_audit_log`) are no longer listed for an account whose only claim to super is a blanket `admin: true` or `api: true` grant. api plugin 1.0.36 stopped treating super as an inherited child permission, so such an account saw the tools and was then refused on every call.
+1. [](#improved)
+    * Hardening from an external review: the OAuth store is never replaced by an empty file when encoding fails; unknown authorization codes and refresh tokens no longer rewrite the store; client registration caps redirect URIs at 10 of 512 bytes each; the consent page shows the full redirect URI, not just its host; the consent form's signature fails closed on invalid UTF-8; tool failures return a fixed message and log the exception instead of echoing it (a wrong-typed argument used to reveal the server path); MCP responses carry `Cache-Control: no-store`; `get_packages` rejects a type other than `plugins` or `themes`; uploads refuse more than 20 files or a file over 64 MiB before decoding.
+    * `manage_environments` says that delete is super-only from api plugin 1.0.38 (the folder can hold `system` and `security` overrides only a super user may write); create still needs `api.config.write`, which the tool keeps declaring so any key that can create sees it. `manage_invitations` notes the 30-day expiration cap and `manage_blueprint_file` the `.md`/CSS refusal, both new in 1.0.38.
+    * Triaged against api plugin 1.0.33 through 1.0.38 and Grav 2.1.3 through 2.1.9. The route table is unchanged; the gate changes above are the only ones that reach a tool. The rest passes straight through: pages report publish/unpublish dates and an effective publishing state (1.0.35), disabled accounts lose their keys and sessions at once (1.0.33, 1.0.36), and cookie-only writes must be same-origin (1.0.38 — keys are exempt, so MCP calls are untouched). The api floor stays at 1.0.30 and the Grav floor at 2.0.24.
+
 # v1.3.2
 ## 2026-09-12
 

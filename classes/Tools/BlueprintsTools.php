@@ -112,7 +112,7 @@ final class BlueprintsTools
                 'descriptor' => [
                     'name' => 'manage_blueprint_file',
                     'title' => 'Manage Blueprint File',
-                    'description' => 'Upload or delete a file referenced by a blueprint file/upload field (theme/plugin config form, account avatar, etc.). Upload returns the user-rooted path to pass to a later delete action; delete is idempotent. [Requires: api.media.write]',
+                    'description' => 'Upload or delete a file referenced by a blueprint file/upload field (theme/plugin config form, account avatar, etc.). Upload returns the user-rooted path to pass to a later delete action; delete is idempotent. api plugin 1.0.38+ refuses `.md` and CSS files unless the blueprint field allows them via `allow_extensions`, and under user/accounts/ only the avatar of the calling account can be deleted without api.users.write. [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -146,6 +146,10 @@ final class BlueprintsTools
             if (!isset($args[$field]) || $args[$field] === '') {
                 return ApiBridge::toolJson(['error' => $field . ' is required for upload action']);
             }
+        }
+
+        if (strlen((string) $args['content_base64']) > MediaTools::MAX_BASE64_BYTES) {
+            return ApiBridge::toolError('content_base64 exceeds the 64 MiB per-file limit.');
         }
 
         $content = base64_decode((string) $args['content_base64'], true);

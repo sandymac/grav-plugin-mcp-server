@@ -77,12 +77,21 @@ $permissionPolicy = [
     // Five routes, three permissions by blueprint type; declared api.access (the
     // weakest) so any key that can use some variant sees the tool.
     'get_blueprint' => 'api.access',
-    // InvitationsController::index enforces api.users.read; the three writes
-    // api.users.write. One tool, declared for the writes (manage_api_keys pattern).
+    // InvitationsController::index enforced api.users.read until api 1.0.38 (the
+    // floor still does); the three writes api.users.write. One tool, declared for
+    // the writes (manage_api_keys pattern).
     'manage_invitations' => 'api.users.write',
     // GroupsController's writes call its private requireSuperOrAdmin(), which is
     // requireSuper() = the 'admin.super' scope cap (api.super accounts pass).
     'manage_groups' => 'admin.super',
+    // AuditController's routes share a private requireAuditAccess() since api
+    // 1.0.38: requireSuper() (the 'admin.super' scope cap) then isSuperAdmin()
+    // (api.super account). Before 1.0.38 they called requirePermission('api.super').
+    'get_audit_log' => 'admin.super',
+    // SystemController::createEnvironment enforces api.config.write;
+    // deleteEnvironment requireSuper() (admin.super) since api 1.0.38. Declared
+    // the weaker so any key that can create sees the tool (get_blueprint pattern).
+    'manage_environments' => 'api.config.write',
 ];
 
 /**
