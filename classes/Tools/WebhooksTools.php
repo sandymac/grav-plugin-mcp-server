@@ -20,7 +20,7 @@ final class WebhooksTools
                 'descriptor' => [
                     'name' => 'get_webhooks',
                     'title' => 'Get Webhooks',
-                    'description' => 'List all configured webhooks with their URLs, events, active status, and failure count; get one webhook\'s full configuration when "webhook_id" is given with the list view; or view the delivery log for one webhook, showing each attempt with status code, success, response time, and timestamp. [Requires: api.webhooks.read]',
+                    'description' => 'List all configured webhooks with their URLs, events, enabled flag, and failure count; get one webhook\'s full configuration when "webhook_id" is given with the list view; or view the delivery log for one webhook, showing each attempt with status code, success, response time, and timestamp. [Requires: api.webhooks.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -66,7 +66,7 @@ final class WebhooksTools
                             'id' => ['type' => 'string', 'description' => 'Webhook ID (required for update, delete, and test)'],
                             'url' => ['type' => 'string', 'description' => 'Webhook endpoint URL (required for create)'],
                             'events' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Events to subscribe to: page.created/updated/deleted/moved/translated, pages.reordered, media.uploaded/deleted, user.created/updated/deleted, config.updated, gpm.installed/removed, grav.upgraded'],
-                            'active' => ['type' => 'boolean', 'description' => 'Whether the webhook is active'],
+                            'enabled' => ['type' => 'boolean', 'description' => 'Whether the webhook delivers events (default true). Set false to pause it without deleting it.'],
                         ],
                         'required' => ['action'],
                         'additionalProperties' => false,
@@ -81,7 +81,7 @@ final class WebhooksTools
                             'POST',
                             '/webhooks',
                             [],
-                            ApiBridge::pick($args, ['url', 'events', 'active'])
+                            ApiBridge::pick($args, ['url', 'events', 'enabled'])
                         )),
                         'update' => $id === ''
                             ? ApiBridge::toolJson(['error' => 'id is required for update action'])
@@ -89,7 +89,7 @@ final class WebhooksTools
                                 'PATCH',
                                 '/webhooks/' . rawurlencode($id),
                                 [],
-                                ApiBridge::pick($args, ['url', 'events', 'active'])
+                                ApiBridge::pick($args, ['url', 'events', 'enabled'])
                             )),
                         'delete' => $id === ''
                             ? ApiBridge::toolJson(['error' => 'id is required for delete action'])

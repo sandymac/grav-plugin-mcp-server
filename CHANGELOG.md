@@ -2,6 +2,7 @@
 ## 2026-09-22
 
 1. [](#bugfix)
+    * `manage_webhook` sends `enabled` instead of `active`, which is the field the api plugin's webhook manager reads. Since 1.3.0 a webhook created or updated with `active: false` stayed enabled, because the api silently ignored the unknown key. param-map could not catch it — the webhook body is one of the request sides it skips as opaque; the api plugin's now-complete OpenAPI spec (1.0.38) did.
     * `get_audit_log` declares `admin.super`, the gate api plugin 1.0.38 puts on every audit route (the `admin.super` API-key scope cap, then an `api.super` account), instead of `api.super`. Before 1.0.38 the audit routes checked `api.super` directly, so a key scoped to `api.super` could read the audit trail; on 1.0.38 that key is refused, and the tool's visibility and `[Requires: …]` hint now say so. An unscoped key on an `api.super` account is unaffected.
     * Super-only tools (`clear_log`, `manage_groups`, `update_site_dashboard_layout`, `get_audit_log`) are no longer listed for an account whose only claim to super is a blanket `admin: true` or `api: true` grant. api plugin 1.0.36 stopped treating super as an inherited child permission, so such an account saw the tools and was then refused on every call.
 1. [](#improved)
