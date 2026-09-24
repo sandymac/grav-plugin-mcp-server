@@ -20,11 +20,11 @@ final class PagesTools
                 'descriptor' => [
                     'name' => 'list_pages',
                     'title' => 'List Pages',
-                    'description' => 'List and search CMS pages with filtering by template, published status, visibility, parent route, and full-text search. Supports sorting and pagination. Returns page summaries. [Requires: api.pages.read]',
+                    'description' => 'List and search CMS pages with filtering by template, published status, visibility, parent route, and search. Supports sorting and pagination. Each row includes the page\'s full header/frontmatter unless fields is "summary". [Requires: api.pages.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'search' => ['type' => 'string', 'description' => 'Full-text search query'],
+                            'search' => ['type' => 'string', 'description' => 'Case-insensitive substring match on title, menu, slug and route (e.g. "docs/rentals" finds every page under that folder; on Flex-pages sites route matching needs Grav 2.2+). Page content is not searched'],
                             'template' => ['type' => 'string', 'description' => 'Filter by page template (e.g. "blog", "item")'],
                             'published' => ['type' => 'boolean', 'description' => 'Filter by published status'],
                             'visible' => ['type' => 'boolean', 'description' => 'Filter by visibility'],
