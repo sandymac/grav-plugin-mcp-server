@@ -13,16 +13,15 @@ Works with **hosted connectors** (built-in OAuth 2.1 authorization server with d
 
 ## Requirements
 
-- Grav 2.0.24+ (what API plugin 1.0.30 requires; the `Uri::ip()` fix the OAuth throttles rely on landed in 2.0.23)
+- Grav 2.1.5+ (what API plugin 1.0.40 requires)
 - PHP 8.3+ (Grav 2 core's own floor)
-- [API plugin](https://github.com/getgrav/grav-plugin-api) **1.0.30 or newer**, installed and enabled, with at least one API key:
+- [API plugin](https://github.com/getgrav/grav-plugin-api) **1.0.40 or newer**, installed and enabled, with at least one API key:
   `bin/plugin api keys:generate --user=admin --name="MCP"`
 
 Tools map 1:1 onto API plugin endpoints, so an older API plugin 404s on tools backed by
 newer endpoints. GPM enforces the version floor; a git clone doesn't — the plugin then
-logs a warning at client handshake, and `site_info` reports `api_plugin_version`. API
-plugin 1.0.31 and later require Grav 2.1; a Grav 2.0 site stays on 1.0.30, which is the
-floor here for exactly that reason.
+logs a warning at client handshake, and `site_info` reports `api_plugin_version`. A Grav 2.0
+site can install API plugin 1.0.30 at most, so it stays on mcp-server 1.3.3.
 
 ## Installation
 

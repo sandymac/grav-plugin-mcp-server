@@ -1,3 +1,13 @@
+# v1.4.0
+## 2026-09-24
+
+1. [](#new)
+    * `get_page_neighbors` returns where a page sits among its siblings: its parent, previous and next sibling, first child, its position and the sibling count, in the parent's native order. It reads only the parent's and the page's own children (api plugin 1.0.40's `GET /pages/{route}/neighbors`), so stepping through a section no longer means listing the whole folder.
+    * `list_pages` takes `fields: "summary"`, which leaves each page's full frontmatter out of the rows (api 1.0.40) and roughly halves the result.
+1. [](#improved)
+    * Triaged against api plugin 1.0.39 and 1.0.40 and Grav 2.1.10 through 2.2.0. **The api floor rises to 1.0.40 and the Grav floor to 2.1.5**, which api 1.0.40 requires. A Grav 2.0 site can install api 1.0.30 at most and stays on mcp-server 1.3.3. The rest passes straight through: compressed responses (the in-process bridge sends no `Accept-Encoding`, so tool results stay plain JSON), key-authenticated api calls no longer starting a PHP session, faster page search that now also matches a page's route, and Grav 2.2's page-cache changes. `GET /admin-next/boot` is Admin Next startup plumbing and is skipped.
+    * param-map follows an action that only wraps a same-class payload method (api 1.0.40 split `me`, `siteLanguages` and the sidebar, floating-widget and context-panel listings this way to share them with `/admin-next/boot`), and no longer reports a skip entry as stale when it runs against an api older than the pin.
+
 # v1.3.3
 ## 2026-09-22
 

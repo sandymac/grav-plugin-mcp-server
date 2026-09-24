@@ -153,6 +153,7 @@ $skippedRoutes = [
     'GET /users/row-actions' => 'SPA plumbing (list UI)',
     'POST /users/{username}/row-action' => 'SPA plumbing (list UI)',
     'GET /mcp/tools' => 'consumed by PluginTools, not a tool itself',
+    'GET /admin-next/boot' => 'SPA plumbing (startup bundle of me, languages, sidebar, widgets, panels)',
     // Admin Next preferences and branding: the SPA's own look-and-feel.
     'GET /admin-next/preferences' => 'Admin Next preferences',
     'PATCH /admin-next/preferences/user' => 'Admin Next preferences',
@@ -505,6 +506,22 @@ function enforcedPermissions(string $file, string $action): array
         } else {
             $out[] = 'DYNAMIC';
         }
+    }
+
+    // An action that only wraps a same-class payload method (api 1.0.40:
+    // `return ApiResponse::create($this->meData($request));`, shared with
+    // /admin-next/boot) enforces whatever that method does. Only a body that
+    // makes that one `$this->` call is followed: with any other call beside
+    // it, the callee's check says nothing about the rest, so it stays
+    // undetectable and needs a $permissionPolicy decision.
+    static $following = [];
+    if ($out === []
+        && preg_match_all('/\$this->\w+\(/', $src) === 1
+        && preg_match('/\$this->(\w+)\(\s*\$request\s*\)/', $src, $m) === 1
+        && !isset($following[$file . '::' . $m[1]])) {
+        $following[$file . '::' . $action] = true;
+        $out = enforcedPermissions($file, $m[1]);
+        unset($following[$file . '::' . $action]);
     }
 
     return array_values(array_unique($out));
@@ -918,6 +935,10 @@ if ($opaque !== []) {
 }
 
 // Coverage: neither reached nor deliberately skipped = an endpoint to triage.
+// A skip for a route newer than the api under test (the floor run) is not stale.
+preg_match('/^version:\s*(\S+)/m', (string) @file_get_contents($apiDir . '/blueprints.yaml'), $apiVersion);
+$olderThanPin = isset($apiVersion[1])
+    && version_compare($apiVersion[1], trim((string) file_get_contents(__DIR__ . '/api-plugin.pin')), '<');
 $known = [];
 foreach ($routes as $route) {
     $key = $route['method'] . ' ' . $route['path'];
@@ -929,7 +950,7 @@ foreach ($routes as $route) {
 foreach ($skippedRoutes as $key => $reason) {
     if (isset($covered[$key])) {
         $fail(sprintf('$skippedRoutes lists %s but a tool reaches it — drop the entry', $key));
-    } elseif (!isset($known[$key])) {
+    } elseif (!isset($known[$key]) && !$olderThanPin) {
         $fail(sprintf('$skippedRoutes lists %s but the api plugin has no such route — drop the entry', $key));
     }
 }
