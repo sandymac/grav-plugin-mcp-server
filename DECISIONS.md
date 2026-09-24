@@ -46,7 +46,7 @@ read its rationale first — most were validated against a live deployment.
    environment support. (The Twig-content events clear sat here too while it was a destructive
    route behind `api.reports.read` — [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35);
    api 1.0.30 moved its gate to `api.system.write` and it became `clear_twig_content_events` in
-   1.3.2, which is why the api floor is 1.0.30.) `GET|PATCH /config/accounts` and
+   1.3.2, which raised the api floor to 1.0.30 at the time.) `GET|PATCH /config/accounts` and
    `GET /blueprints/config/accounts` are reached at runtime by the config and blueprint tools with
    scope `accounts`; they sit in the skip list only because param-map's sampler never generates
    that value.

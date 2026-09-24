@@ -38,6 +38,7 @@ final class PagesTools
                             'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Items per page (default: 50)'],
                             'lang' => ['type' => 'string', 'description' => 'Language code for multilingual sites'],
                             'translations' => ['type' => 'boolean', 'description' => 'Include translation info'],
+                            'fields' => ['type' => 'string', 'enum' => ['summary'], 'description' => '"summary" omits each page\'s full header/frontmatter (about half the size)'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -58,6 +59,7 @@ final class PagesTools
                     'per_page' => $args['per_page'] ?? 50,
                     'lang' => $args['lang'] ?? null,
                     'translations' => $args['translations'] ?? null,
+                    'fields' => $args['fields'] ?? null,
                 ])),
             ],
 
@@ -87,6 +89,33 @@ final class PagesTools
                         'render' => $args['render'] ?? null,
                         'children' => $args['children'] ?? null,
                         'children_depth' => $args['children_depth'] ?? null,
+                        'lang' => $args['lang'] ?? null,
+                        'translations' => $args['translations'] ?? null,
+                    ]),
+                    true
+                ),
+            ],
+
+            'get_page_neighbors' => [
+                'permission' => 'api.pages.read',
+                'descriptor' => [
+                    'name' => 'get_page_neighbors',
+                    'title' => 'Get Page Neighbors',
+                    'description' => 'Where a page sits among its siblings: its parent, previous and next sibling, first child (each a page summary or null), its index (-1 when the parent\'s listing omits it) and the sibling count. Siblings are in the parent\'s native order, as list_pages children_of + sort "default" lists them. [Requires: api.pages.read]',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'route' => ['type' => 'string', 'description' => 'Page route (e.g. "/blog/my-post")'],
+                            'lang' => ['type' => 'string', 'description' => 'Language code'],
+                            'translations' => ['type' => 'boolean', 'description' => 'Include translation info in each summary'],
+                        ],
+                        'required' => ['route'],
+                        'additionalProperties' => false,
+                    ],
+                    'annotations' => ['readOnlyHint' => true],
+                ],
+                'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
+                    $api->request('GET', '/pages/' . ApiBridge::path($args) . '/neighbors', [
                         'lang' => $args['lang'] ?? null,
                         'translations' => $args['translations'] ?? null,
                     ]),
