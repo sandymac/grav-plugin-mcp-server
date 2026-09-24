@@ -510,15 +510,17 @@ function enforcedPermissions(string $file, string $action): array
 
     // An action that only wraps a same-class payload method (api 1.0.40:
     // `return ApiResponse::create($this->meData($request));`, shared with
-    // /admin-next/boot) enforces whatever that method does.
+    // /admin-next/boot) enforces whatever that method does. Only a body that
+    // makes that one `$this->` call is followed: with any other call beside
+    // it, the callee's check says nothing about the rest, so it stays
+    // undetectable and needs a $permissionPolicy decision.
     static $following = [];
-    if ($out === [] && preg_match_all('/\$this->(\w+)\(\s*\$request\s*\)/', $src, $m) > 0) {
+    if ($out === []
+        && preg_match_all('/\$this->\w+\(/', $src) === 1
+        && preg_match('/\$this->(\w+)\(\s*\$request\s*\)/', $src, $m) === 1
+        && !isset($following[$file . '::' . $m[1]])) {
         $following[$file . '::' . $action] = true;
-        foreach (array_unique($m[1]) as $callee) {
-            if (!isset($following[$file . '::' . $callee])) {
-                $out = array_merge($out, enforcedPermissions($file, $callee));
-            }
-        }
+        $out = enforcedPermissions($file, $m[1]);
         unset($following[$file . '::' . $action]);
     }
 
