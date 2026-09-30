@@ -591,10 +591,23 @@ class OAuthServer
             $this->json(400, ['error' => 'invalid_grant']);
         }
 
-        // Rotate: revoke the old access key, then reissue both tokens.
+        // Rotate: revoke the old access key, then reissue both tokens. A key
+        // that is already gone was deleted out of band — the user's page in
+        // Admin2, `bin/plugin api keys:revoke` — and that is the owner ending
+        // the connection, so the grant ends with it instead of being minted
+        // back here. (The api plugin fires no event on key deletion; this is
+        // the only place to notice.)
         $user = $this->grav['accounts']->load((string) $token['username']);
-        if ($user->exists() && !empty($token['key_id'])) {
-            (new ApiKeyManager())->revokeKey($user, (string) $token['key_id']);
+        $keyId = (string) ($token['key_id'] ?? '');
+        if (!$user->exists() || $keyId === '' || !(new ApiKeyManager())->revokeKey($user, $keyId)) {
+            $this->store->revokeFamily((string) ($token['family'] ?? ''));
+            $this->log('notice', sprintf(
+                'refresh refused for user "%s" (client %s): access key %s no longer exists, connection ended',
+                (string) $token['username'],
+                (string) $token['client_id'],
+                $keyId,
+            ));
+            $this->json(400, ['error' => 'invalid_grant']);
         }
 
         $this->issueTokens((string) $token['client_id'], (string) $token['username'], (string) ($token['scope'] ?? ''), (string) ($token['family'] ?? ''));

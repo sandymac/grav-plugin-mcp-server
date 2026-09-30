@@ -1,3 +1,9 @@
+# v1.4.1
+## 2026-09-30
+
+1. [](#bugfix)
+    * **Security:** deleting a connection's `grav_` key out of band — from the user's page in Admin2 or with `bin/plugin api keys:revoke` — now ends the connection. A refresh whose access key no longer exists is refused with `invalid_grant`, its token family is dropped, and the refusal is logged. Before, the refresh handler ignored the result of the api plugin's `revokeKey()` and minted a replacement key for the same account, so a deleted key came back at the next refresh and the connection lived on until `/mcp/oauth/revoke` was called or the account was disabled. Reported privately by an external user.
+
 # v1.4.0
 ## 2026-09-24
 
