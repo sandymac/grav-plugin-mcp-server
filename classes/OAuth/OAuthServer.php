@@ -602,10 +602,14 @@ class OAuthServer
         if (!$user->exists() || $keyId === '' || !(new ApiKeyManager())->revokeKey($user, $keyId)) {
             $this->store->revokeFamily((string) ($token['family'] ?? ''));
             $this->log('notice', sprintf(
-                'refresh refused for user "%s" (client %s): access key %s no longer exists, connection ended',
+                'refresh refused for user "%s" (client %s): %s no longer exists, connection ended',
                 (string) $token['username'],
                 (string) $token['client_id'],
-                $keyId,
+                match (true) {
+                    !$user->exists() => 'account',
+                    $keyId === '' => 'key id (none recorded)',
+                    default => 'access key ' . $keyId,
+                },
             ));
             $this->json(400, ['error' => 'invalid_grant']);
         }
