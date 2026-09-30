@@ -15,6 +15,7 @@ declare(strict_types=1);
  *   - permission gate distinct from bad credentials
  *   - PKCE S256 enforcement and single-use codes
  *   - refresh rotation revoking the superseded access key
+ *   - an out-of-band key deletion ending the connection at its next refresh
  *   - RFC 7009 revocation killing both token halves, with no validity oracle
  *
  * OAuthServer's handlers respond-and-exit like real HTTP, so each request runs
@@ -101,6 +102,7 @@ use Grav\Common\Config\Config;
 use Grav\Common\Grav;
 use Grav\Common\User\Authentication;
 use Grav\Common\User\DataUser\User;
+use Grav\Common\Yaml;
 use Grav\Plugin\McpServer\OAuth\OAuthServer;
 
 $gravRoot = __DIR__ . '/../.gravtest/grav-admin';
@@ -611,12 +613,29 @@ check(!str_contains((string) file_get_contents($keysFile), substr((string) $fres
 $unknown = oauth('POST', '/mcp/oauth/revoke', [], ['token' => 'grav_' . str_repeat('0', 48)]);
 check($unknown['status'] === 200, 'revoking an unknown token still returns 200 (no validity oracle)');
 
+// 11a. A key deleted out of band — the user's page in Admin2, `bin/plugin api
+// keys:revoke` — ends the connection: the refresh is refused instead of
+// minting the key back. The deletion is done the way ApiKeyManager::revokeKey
+// does it, by dropping the key's row from the store.
+$code5 = obtainCode($clientId, $authParams($clientId), 'alice', 'pw-alice');
+$orphaned = json_decode(oauth('POST', '/mcp/oauth/token', [], $tokenPost($code5, VERIFIER))['body'], true);
+$orphanedPrefix = substr((string) $orphaned['access_token'], 0, 12) . '...';
+$keys = (array) Yaml::parse((string) file_get_contents($keysFile));
+check(in_array($orphanedPrefix, array_column($keys, 'prefix'), true), 'the fresh access key is in the store before the out-of-band deletion');
+file_put_contents($keysFile, Yaml::dump(array_filter($keys, static fn(array $k): bool => ($k['prefix'] ?? '') !== $orphanedPrefix)));
+$keysAfterDeletion = $countKeys((string) file_get_contents($keysFile));
+$afterDeletion = oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $orphaned['refresh_token']));
+check($afterDeletion['status'] === 400, 'refreshing after the access key was deleted out of band gets invalid_grant');
+check($countKeys((string) file_get_contents($keysFile)) === $keysAfterDeletion, 'the refused refresh minted no replacement key');
+check(oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $orphaned['refresh_token']))['status'] === 400, 'the refused refresh token stays dead');
+
 // 12. The security trail: approval, lockout crossing, and replay each log.
 $securityLog = (string) file_get_contents(FLOW_DATA_DIR . '/grav.log');
 check(str_contains($securityLog, 'consent approved: user "alice"') && str_contains($securityLog, 'full account access'), 'a consent approval is logged with user and grant');
 check(str_contains($securityLog, 'scopes "api.pages.read"'), 'a scoped approval logs the granted scopes');
 check(str_contains($securityLog, 'consent lockout'), 'crossing into lockout is logged');
 check(str_contains($securityLog, 'refresh token replay'), 'a replayed refresh token is logged as theft');
+check(str_contains($securityLog, 'refresh refused for user "alice"') && str_contains($securityLog, 'no longer exists'), 'a refresh refused for a deleted key is logged');
 check(str_contains($securityLog, 'registration rejected from') && str_contains($securityLog, 'https://evil.example/cb'), 'a rejected registration is logged with the offending redirect_uri');
 check(str_contains($securityLog, 'registration throttled'), 'a throttled registration is logged');
 
