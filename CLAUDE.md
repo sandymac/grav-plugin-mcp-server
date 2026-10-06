@@ -74,3 +74,17 @@ triage here**. The machinery:
    GPM picks up updates automatically.
 
 Machine- and deployment-specific notes live in `CLAUDE.local.md` (untracked).
+
+## Releasing
+
+- Bump `version:` in `blueprints.yaml` and the plugin class's `VERSION`
+  constant (smoke asserts they match), add the CHANGELOG entry (`# vX.Y.Z`
+  heading is markdown only; the date line is ISO `## YYYY-MM-DD`), merge to
+  `main`.
+- **Tags are bare: `X.Y.Z`, never `vX.Y.Z`.** GPM and GitHub sort tags as
+  text, so mixing the two styles hides updates (getgrav/grav#3992), and GPM
+  submissions are refused with a `v` (getgrav/grav#4297).
+  Every tag here was normalised to bare on 2026-10-06; keep it that way.
+- GitHub release from that tag: title `X.Y.Z`, body = the CHANGELOG entry
+  without its two heading lines:
+  `gh release create X.Y.Z --title X.Y.Z --notes-file <body>`.
