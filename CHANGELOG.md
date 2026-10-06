@@ -1,3 +1,11 @@
+# v1.5.0
+## 2026-10-06
+
+1. [](#new)
+    * `get_packages` takes `include: "available_changelog"`, which folds in what an available update would change: the GPM repository's changelog entries newer than the installed version, as one Markdown document (api plugin 1.0.44's `?available=true` on the package changelog route). A package that is current, or not in the repository, answers 404.
+1. [](#improved)
+    * Triaged against api plugin 1.0.41 through 1.0.45 and Grav 2.2.1 through 2.2.5. **The api floor rises to 1.0.44**, where the parameter above landed — an older api ignores it and returns the installed CHANGELOG.md instead. The Grav floor stays at 2.1.5, which api 1.0.45 still requires. The route table is unchanged; the rest passes straight through: `get_page` with `children` and `get_page_neighbors` no longer reveal pages whose own permissions deny the caller (1.0.41 — getgrav/grav-plugin-api#47 and #48, filed from the 1.4.0 review), and deleting or copying a page is refused when a page inside it denies that action; `manage_users` can no longer disable the caller's own account or drop its own super-admin access (1.0.42); a page's ETag is now the same however it was read, so `get_page` with `children`, `translations` or `render` followed by `update_page` with that `etag` no longer fails with a conflict (1.0.45); creating a module, or retemplating one, with a template the site lacks is refused with the available modular types listed (1.0.44) and, from 1.0.45, succeeds instead with a `template_missing` entry in the response's `warnings`, with `get_page` reporting `template_missing`; `get_page` with `render` works on module pages (1.0.44); `list_pages` shows a reorder, move, copy or delete at once, and a slug collision is refused (1.0.44); `get_page_preview_token` returns the route with its language prefix (1.0.45). The new Admin Next preferences (`darkShade`, `helpMode`) live on a route this plugin skips.
+
 # v1.4.1
 ## 2026-09-30
 
