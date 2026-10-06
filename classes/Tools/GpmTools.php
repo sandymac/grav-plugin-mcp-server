@@ -27,7 +27,7 @@ final class GpmTools
                             'view' => ['type' => 'string', 'enum' => ['installed', 'info', 'updates'], 'description' => 'What to return (default: installed). "installed" lists installed packages with version info and update availability; "info" details one package; "updates" checks Grav core, plugins, and themes for available updates.'],
                             'type' => ['type' => 'string', 'enum' => ['plugins', 'themes'], 'description' => 'Package type. Required for the "installed" and "info" views; ignored by "updates".'],
                             'slug' => ['type' => 'string', 'description' => 'Package slug (e.g. "email", "quark"). Required for the "info" view; ignored by the others.'],
-                            'include' => ['type' => 'string', 'enum' => ['readme', 'changelog'], 'description' => 'Also fetch readme or changelog content. "info" view only.'],
+                            'include' => ['type' => 'string', 'enum' => ['readme', 'changelog', 'available_changelog'], 'description' => 'Also fetch readme or changelog content. "available_changelog" fetches instead what an available update would change: the GPM repository\'s changelog entries newer than the installed version, as one Markdown document (404 when there are none). "info" view only.'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -148,11 +148,14 @@ final class GpmTools
         }
 
         $include = $args['include'] ?? null;
-        if ($include !== 'readme' && $include !== 'changelog') {
+        if (!in_array($include, ['readme', 'changelog', 'available_changelog'], true)) {
             return ApiBridge::fromResponse($resp);
         }
 
-        $extra = $api->request('GET', $base . '/' . $include);
+        // api 1.0.44+: the GPM feed's entries newer than the installed version.
+        $extra = $include === 'available_changelog'
+            ? $api->request('GET', $base . '/changelog', ['available' => true])
+            : $api->request('GET', $base . '/' . $include);
         if ($extra['status'] >= 400) {
             return ApiBridge::fromResponse($extra);
         }
