@@ -1,3 +1,11 @@
+# v1.6.0
+## 2026-10-14
+
+1. [](#new)
+    * `manage_page_translation` with `action: "create"` takes `source_language`, the existing translation the new one starts from: its template, and its title, content and header for any of those the call leaves out. Without it the new translation starts from the default language, as before (api plugin 1.0.47's `source_lang`).
+1. [](#improved)
+    * Triaged against api plugin 1.0.46 through 1.0.48 and Grav 2.2.6 through 2.2.8. **The api floor rises to 1.0.47**, where the parameter above landed. An older api ignores it and copies the default language. The Grav floor stays at 2.1.5. The route table is unchanged, and the rest passes straight through: a language whose translation is a draft is listed only as translated (1.0.46); copying a page on a multi-language site gives every translation the new slug (1.0.46); `bulk_pages` reorganize skips moves that change nothing and gives a page moved into another folder that folder's order-number width (1.0.47); `get_media_meta` can report `select` fields with their `options` (1.0.47); deleting one translation of a module page works and removes only that language (1.0.48).
+
 # v1.5.0
 ## 2026-10-06
 

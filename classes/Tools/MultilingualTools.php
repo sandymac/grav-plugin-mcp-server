@@ -83,7 +83,7 @@ final class MultilingualTools
                             'action' => ['type' => 'string', 'enum' => ['create', 'adopt', 'sync'], 'description' => 'Action to perform'],
                             'route' => ['type' => 'string', 'description' => 'Page route'],
                             'language' => ['type' => 'string', 'description' => 'Target language code (e.g. "fr", "de", "es")'],
-                            'source_language' => ['type' => 'string', 'description' => 'Language to copy from (sync action only)'],
+                            'source_language' => ['type' => 'string', 'description' => 'Language to copy from. sync: required. create: the translation whose template, title, content and header the new one starts from (default: the site default language)'],
                             'title' => ['type' => 'string', 'description' => 'Translated title (create action only)'],
                             'content' => ['type' => 'string', 'description' => 'Translated content in markdown (create action only)'],
                             'header' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Translated header/frontmatter fields (create action only)'],
@@ -99,8 +99,10 @@ final class MultilingualTools
                             'POST',
                             '/pages/' . ApiBridge::path($args) . '/translate',
                             [],
-                            // The MCP-facing name is 'language'; the endpoint reads 'lang'.
-                            ['lang' => $args['language'] ?? ''] + ApiBridge::pick($args, ['title', 'content', 'header'])
+                            // The MCP-facing names are 'language'/'source_language'; the endpoint reads 'lang'/'source_lang'.
+                            ['lang' => $args['language'] ?? '']
+                                + (($args['source_language'] ?? '') !== '' ? ['source_lang' => $args['source_language']] : [])
+                                + ApiBridge::pick($args, ['title', 'content', 'header'])
                         )),
                         'adopt' => ApiBridge::fromResponse($api->request(
                             'POST',
