@@ -36,7 +36,7 @@ final class ConfigTools
                 'descriptor' => [
                     'name' => 'get_config',
                     'title' => 'Get Config',
-                    'description' => 'Read configuration values for a specific scope. Scopes: "system", "site", "plugins/{name}" (e.g. "plugins/email"), "themes/{name}". Returns the config object and an ETag for use with update_config. [Requires: api.config.read]',
+                    'description' => 'Read configuration values for a specific scope. Scopes: "system", "site", "plugins/{name}" (e.g. "plugins/email"), "themes/{name}". Returns the config object and an ETag for use with update_config. `shadowed`, when present, lists the keys an environment folder or a GRAV_CONFIG__* server variable sets over this layer, with the value the site actually uses: saving those keys here changes nothing. [Requires: api.config.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -50,7 +50,7 @@ final class ConfigTools
                 'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
                     $api->request('GET', '/config/' . ApiBridge::path($args, 'scope')),
                     true,
-                    static fn(mixed $data): array => self::wrapConfig($data)
+                    self::wrapConfig(...)
                 ),
             ],
 
@@ -85,7 +85,7 @@ final class ConfigTools
                     return ApiBridge::fromResponse(
                         $api->request('PATCH', '/config/' . ApiBridge::path($args, 'scope'), [], $args['values'] ?? [], $headers),
                         true,
-                        static fn(mixed $data): array => self::wrapConfig($data)
+                        self::wrapConfig(...)
                     );
                 },
             ],
@@ -136,7 +136,7 @@ final class ConfigTools
                     return ApiBridge::fromResponse(
                         $api->request('POST', '/config/' . ApiBridge::path($args, 'scope') . '/revert', [], $body, $headers),
                         true,
-                        static fn(mixed $data): array => self::wrapConfig($data)
+                        self::wrapConfig(...)
                     );
                 },
             ],
@@ -146,9 +146,10 @@ final class ConfigTools
     /**
      * ApiBridge::fromResponse() (withEtag: true) merges `_etag` into $data itself
      * before calling this transform; pull it back out to a sibling key so the
-     * shape is {config: <raw config object>, _etag?: <ETag>}.
+     * shape is {config: <raw config object>, _etag?: <ETag>, shadowed?: [...]}.
+     * `shadowed` is the api's meta.shadowed (1.0.50), which fromResponse drops.
      */
-    private static function wrapConfig(mixed $data): array
+    private static function wrapConfig(mixed $data, mixed $json = null): array
     {
         $etag = is_array($data) ? ($data['_etag'] ?? null) : null;
         if ($etag !== null) {
@@ -158,6 +159,9 @@ final class ConfigTools
         $result = ['config' => $data];
         if ($etag !== null) {
             $result['_etag'] = $etag;
+        }
+        if (!empty($json['meta']['shadowed'])) {
+            $result['shadowed'] = $json['meta']['shadowed'];
         }
 
         return $result;

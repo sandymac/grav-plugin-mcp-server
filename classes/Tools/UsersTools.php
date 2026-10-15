@@ -55,11 +55,11 @@ final class UsersTools
                 'descriptor' => [
                     'name' => 'manage_users',
                     'title' => 'Manage Users',
-                    'description' => 'Create, update, or delete a user account. For "create": password and email are required too. For "update": only provided fields are changed. For "delete": you cannot delete your own account. [Requires: api.users.write]',
+                    'description' => 'Create, update, or delete a user account. For "create": password and email are required too. For "update": only provided fields are changed; when the Login plugin confirms email changes, changing your OWN email does not take effect at once: the new address is shown as "email_pending" and a confirmation link is mailed to it. "cancel_email_change" drops your own waiting email change and "resend_email_change" mails its link again (your own account only). For "delete": you cannot delete your own account. [Requires: api.users.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete', 'cancel_email_change', 'resend_email_change'], 'description' => 'Action to perform'],
                             'username' => ['type' => 'string', 'description' => 'Username to create (alphanumeric, no spaces), update, or delete'],
                             'password' => ['type' => 'string', 'description' => 'Password (required for "create", new password for "update")'],
                             'email' => ['type' => 'string', 'format' => 'email', 'description' => 'Email address (required for "create")'],
@@ -76,7 +76,7 @@ final class UsersTools
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
                     if (($args['username'] ?? '') === '') {
-                        return ApiBridge::toolJson(['error' => 'username is required for the create, update, and delete actions']);
+                        return ApiBridge::toolJson(['error' => 'username is required for every manage_users action']);
                     }
 
                     return match ($args['action'] ?? null) {
@@ -93,12 +93,19 @@ final class UsersTools
                             [],
                             ApiBridge::pick($args, ['email', 'fullname', 'title', 'state', 'password', 'access']),
                             isset($args['etag']) ? ['If-Match' => (string) $args['etag']] : []
-                        )),
+                        ), transform: self::withMetaMessage(...)),
                         'delete' => ApiBridge::fromResponse(
                             $api->request('DELETE', '/users/' . self::username($args)),
                             successMessage: sprintf('User "%s" deleted.', $args['username'] ?? '')
                         ),
-                        default => ApiBridge::toolError('Invalid action. Must be one of: create, update, delete'),
+                        'cancel_email_change' => ApiBridge::fromResponse(
+                            $api->request('DELETE', '/users/' . self::username($args) . '/email-change')
+                        ),
+                        'resend_email_change' => ApiBridge::fromResponse(
+                            $api->request('POST', '/users/' . self::username($args) . '/email-change/resend'),
+                            transform: self::withMetaMessage(...)
+                        ),
+                        default => ApiBridge::toolError('Invalid action. Must be one of: create, update, delete, cancel_email_change, resend_email_change'),
                     };
                 },
             ],
@@ -317,6 +324,16 @@ final class UsersTools
     private static function username(array $args): string
     {
         return rawurlencode((string) ($args['username'] ?? ''));
+    }
+
+    /** Keep the api's meta.message (e.g. "We sent a confirmation link to …") that fromResponse would drop. */
+    private static function withMetaMessage(mixed $data, mixed $json): mixed
+    {
+        if (is_array($data) && is_string($json['meta']['message'] ?? null)) {
+            $data['message'] = $json['meta']['message'];
+        }
+
+        return $data;
     }
 
     /** Group readable_name/description/icon/enabled/access → api field names, only those present in $args. */

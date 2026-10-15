@@ -22,7 +22,7 @@ use Psr\Http\Message\ServerRequestInterface;
 class McpServer
 {
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
-    public const string VERSION = '1.6.0';
+    public const string VERSION = '1.7.0';
 
     /**
      * The commit a release zip was built from — git archive substitutes it
@@ -37,7 +37,7 @@ class McpServer
     }
 
     /** Matches the api dependency floor in blueprints.yaml — smoke asserts they agree. */
-    public const string MIN_API_VERSION = '1.0.47';
+    public const string MIN_API_VERSION = '1.0.50';
     public const array SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'];
 
     private ToolRegistry $tools;

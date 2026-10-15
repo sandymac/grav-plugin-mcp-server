@@ -1,3 +1,12 @@
+# v1.7.0
+## 2026-10-15
+
+1. [](#new)
+    * `manage_users` takes `action: "cancel_email_change"` and `action: "resend_email_change"` for your own account. They drop a waiting email change, or mail its confirmation link again (api plugin 1.0.50's `DELETE /users/{username}/email-change` and `POST /users/{username}/email-change/resend`). Both need the Login plugin 3.10.0 or newer with email-change confirmation on, and answer 404 when nothing is waiting.
+    * `get_config`, `update_config` and `revert_config` return `shadowed` when an environment folder or a `GRAV_CONFIG__*` server variable sets keys over the layer being read or written. Each entry gives the key, where it is set and the value the site actually uses, so saving those keys to that layer changes nothing (api plugin 1.0.50's `meta.shadowed`, which these tools used to drop).
+1. [](#improved)
+    * Triaged against api plugin 1.0.49 and 1.0.50 and Grav 2.2.9. **The api floor rises to 1.0.50**, where the routes above landed. The Grav floor stays at 2.1.5. With api 1.0.50 and Login 3.10.0 or newer, a `manage_users` update that changes your own email waits for confirmation: the result carries `email_pending` and a `message` saying where the link went, and `email` changes only once the link is opened. Other fields in the same call still save, and an admin changing someone else's email saves it at once. The rest passes straight through: `get_packages` marks an installed plugin whose `enabled` comes from an environment folder or a server variable with `enabled_source` (1.0.50); adding an environment folder no longer replaces the api's signing secret (1.0.50) or Grav's security key (Grav 2.2.9); `get_packages` paging with a large `per_page` no longer repeats packages (1.0.50); blueprint validation on create and translate uses the page's real template (1.0.49).
+
 # v1.6.0
 ## 2026-10-14
 
