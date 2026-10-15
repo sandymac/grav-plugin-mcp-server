@@ -322,9 +322,27 @@ check($corrupt->takeRefresh('x') === null, 'corrupt refresh entries are dropped,
 
 @unlink($storeFile);
 
+// meta the api sends beside data that a tool keeps: get_config's shadowed list
+// and an email change's confirmation message (api 1.0.50); fromResponse drops meta.
+$metaBridge = new class(null, null) extends \Grav\Plugin\McpServer\ApiBridge {
+    public function request(string $method, string $path, array $query = [], ?array $body = null, array $headers = [], array $files = []): array
+    {
+        return ['status' => 200, 'headers' => [], 'json' => ['data' => ['username' => 'u'], 'meta' => [
+            'shadowed' => [['path' => 'enabled', 'source' => 'environment']],
+            'message' => 'We sent a confirmation link to new@example.com.',
+        ]]];
+    }
+};
+$toolsByName = \Grav\Plugin\McpServer\Tools\ConfigTools::tools() + \Grav\Plugin\McpServer\Tools\UsersTools::tools();
+$config = json_decode($toolsByName['get_config']['handler']($metaBridge, ['scope' => 'plugins/x'])['content'][0]['text'], true);
+check(($config['shadowed'][0]['path'] ?? null) === 'enabled', 'get_config keeps meta.shadowed');
+$resent = json_decode($toolsByName['manage_users']['handler']($metaBridge, ['action' => 'resend_email_change', 'username' => 'u'])['content'][0]['text'], true);
+check(str_contains($resent['message'] ?? '', 'confirmation link'), 'manage_users resend_email_change keeps meta.message');
+
 // serverInfo.version is reported to every MCP client, so it must match the
 // version GPM installs. These drifted the first time blueprints.yaml was bumped.
 $blueprints = (string) file_get_contents(__DIR__ . '/../blueprints.yaml');
+
 preg_match('/^version:\s*(\S+)/m', $blueprints, $m);
 check(
     ($m[1] ?? '') === McpServer::VERSION,
