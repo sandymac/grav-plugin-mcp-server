@@ -149,9 +149,12 @@ class OAuthStore
 
     /**
      * Kill a refresh-token family (replay = theft): delete every member, live
-     * or tombstoned, and return the key_ids of the live ones so the caller can
-     * revoke their access keys. An empty family never sweeps — tokens minted
-     * before families existed all share the missing value.
+     * or tombstoned, and return every member's key_id so the caller can revoke
+     * their access keys. Tombstones count too: a token is marked used before
+     * its client binding is checked, so a refused refresh leaves a tombstone
+     * whose key is still live, and revoking a key that rotation already
+     * revoked is a harmless no-op. An empty family never sweeps — tokens
+     * minted before families existed all share the missing value.
      *
      * @return list<string>
      */
@@ -165,7 +168,7 @@ class OAuthStore
             $keyIds = [];
             foreach ($this->data['refresh_tokens'] as $hash => $token) {
                 if (is_array($token) && (string) ($token['family'] ?? '') === $family) {
-                    if (empty($token['used']) && !empty($token['key_id'])) {
+                    if (!empty($token['key_id'])) {
                         $keyIds[(string) $token['key_id']] = true;
                     }
                     unset($this->data['refresh_tokens'][$hash]);

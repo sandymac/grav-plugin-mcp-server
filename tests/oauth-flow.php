@@ -527,9 +527,13 @@ $familyStore = new \Grav\Plugin\McpServer\OAuth\OAuthStore(FLOW_DATA_DIR . '/mcp
 $familyStore->putRefresh('h1', ['family' => 'fam', 'used' => false, 'key_id' => '1234567890123456', 'expires' => time() + 3600]);
 $familyStore->putRefresh('h2', ['family' => 'fam', 'used' => false, 'key_id' => 'abcdef0123456789', 'expires' => time() + 3600]);
 $familyStore->putRefresh('h3', ['family' => 'other', 'used' => false, 'key_id' => '9999999999999999', 'expires' => time() + 3600]);
+// A tombstone's key may still be live: a refresh refused on client_id after
+// takeRefresh() marked it used never reached revokeKey(). The sweep must
+// name its key too.
+$familyStore->putRefresh('h4', ['family' => 'fam', 'used' => true, 'key_id' => 'fedcba9876543210', 'expires' => time() + 3600]);
 $sweptIds = $familyStore->revokeFamily('fam');
 sort($sweptIds);
-check($sweptIds === ['1234567890123456', 'abcdef0123456789'], 'revokeFamily returns its key ids as strings, an all-digit id included');
+check($sweptIds === ['1234567890123456', 'abcdef0123456789', 'fedcba9876543210'], 'revokeFamily returns its key ids as strings, an all-digit id and a used token included');
 check($familyStore->takeRefresh('h3') !== null, 'revokeFamily leaves other families alone');
 
 // 10b. Scope honoring: junk-only requests are refused, recognized scopes ride
