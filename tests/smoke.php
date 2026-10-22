@@ -282,7 +282,9 @@ check(is_array($liveTake) && empty($liveTake['used']), 'a live refresh token com
 $replayTake = $store->takeRefresh('gen1');
 check(is_array($replayTake) && !empty($replayTake['used']), 'a replayed refresh token comes back flagged used');
 $store->putRefresh('gen2', ['client_id' => 'c', 'username' => 'bob', 'key_id' => 'kNew', 'family' => 'famX', 'expires' => time() + 60]);
-check((new OAuthStore($storeFile))->revokeFamily('famX') === ['kNew'], 'revokeFamily sweeps the family and returns the live keys to revoke');
+$swept = (new OAuthStore($storeFile))->revokeFamily('famX');
+sort($swept);
+check($swept === ['kNew', 'kOld'], 'revokeFamily sweeps the family and returns the key of every member to revoke, the used ancestor included');
 check($store->takeRefresh('gen2') === null, 'the swept descendant refresh token is gone');
 check($store->revokeFamily('') === [], 'an empty family never sweeps (pre-family tokens all share the missing value)');
 
