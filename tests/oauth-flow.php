@@ -519,6 +519,19 @@ $afterTheft = oauth('POST', '/mcp/oauth/token', [], $refreshPost((string) $rotat
 check($afterTheft['status'] === 400, 'the replay revoked the descendant refresh token');
 check(!str_contains((string) file_get_contents($keysFile), substr((string) $rotated['access_token'], 0, 12)), 'the replay revoked the descendant access key');
 
+// 10a-i. The theft sweep hands its key ids to ApiKeyManager::revokeKey(string)
+// under strict_types. An all-digit id (1 in ~1,850 of bin2hex(random_bytes(8)))
+// comes back from array_keys() as an int unless the store casts it — the
+// same slip as getgrav/grav-plugin-api#64 in findKey().
+$familyStore = new \Grav\Plugin\McpServer\OAuth\OAuthStore(FLOW_DATA_DIR . '/mcp-server/revoke-family.json');
+$familyStore->putRefresh('h1', ['family' => 'fam', 'used' => false, 'key_id' => '1234567890123456', 'expires' => time() + 3600]);
+$familyStore->putRefresh('h2', ['family' => 'fam', 'used' => false, 'key_id' => 'abcdef0123456789', 'expires' => time() + 3600]);
+$familyStore->putRefresh('h3', ['family' => 'other', 'used' => false, 'key_id' => '9999999999999999', 'expires' => time() + 3600]);
+$sweptIds = $familyStore->revokeFamily('fam');
+sort($sweptIds);
+check($sweptIds === ['1234567890123456', 'abcdef0123456789'], 'revokeFamily returns its key ids as strings, an all-digit id included');
+check($familyStore->takeRefresh('h3') !== null, 'revokeFamily leaves other families alone');
+
 // 10b. Scope honoring: junk-only requests are refused, recognized scopes ride
 // the consent screen, the minted key, and the token responses.
 $junkScope = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['scope' => 'openid profile']));

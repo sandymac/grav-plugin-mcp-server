@@ -172,7 +172,10 @@ class OAuthStore
                 }
             }
 
-            return array_keys($keyIds);
+            // array_keys() hands back an int for an all-digit key id (PHP
+            // coerces canonical-decimal string keys), and revokeKey() is
+            // typed string under strict_types.
+            return array_map('strval', array_keys($keyIds));
         });
 
         return is_array($keyIds) ? $keyIds : [];
