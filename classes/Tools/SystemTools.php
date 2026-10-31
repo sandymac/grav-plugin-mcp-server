@@ -296,11 +296,11 @@ final class SystemTools
             ],
 
             'list_environments' => [
-                'permission' => 'api.system.read',
+                'permission' => 'api.access',
                 'descriptor' => [
                     'name' => 'list_environments',
                     'title' => 'List Environments',
-                    'description' => 'List configurable Grav environments under user/env/, plus the auto-detected current one. Use with `update_config`\'s `environment` arg. [Requires: api.system.read]',
+                    'description' => 'List configurable Grav environments under user/env/, plus the auto-detected current one. Names only. Use with `update_config`\'s `environment` arg. [Requires: api.access]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => new \stdClass(),

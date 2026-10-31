@@ -341,6 +341,25 @@ check(($config['shadowed'][0]['path'] ?? null) === 'enabled', 'get_config keeps 
 $resent = json_decode($toolsByName['manage_users']['handler']($metaBridge, ['action' => 'resend_email_change', 'username' => 'u'])['content'][0]['text'], true);
 check(str_contains($resent['message'] ?? '', 'confirmation link'), 'manage_users resend_email_change keeps meta.message');
 
+// A delete a plugin can undo answers 200 with {undo} instead of 204 (api 1.1.3);
+// delete_page keeps it beside its message, and a plain 204 still reads as before.
+$deleteBridge = new class(null, null) extends \Grav\Plugin\McpServer\ApiBridge {
+    public ?array $undo = null;
+
+    public function request(string $method, string $path, array $query = [], ?array $body = null, array $headers = [], array $files = []): array
+    {
+        return $this->undo === null
+            ? ['status' => 204, 'headers' => [], 'json' => null]
+            : ['status' => 200, 'headers' => [], 'json' => ['data' => ['undo' => $this->undo]]];
+    }
+};
+$deletePage = \Grav\Plugin\McpServer\Tools\PagesTools::tools()['delete_page']['handler'];
+$plain = json_decode($deletePage($deleteBridge, ['route' => '/a'])['content'][0]['text'], true);
+check(($plain['success'] ?? false) === true && !isset($plain['undo']), 'delete_page answers a 204 with its message alone');
+$deleteBridge->undo = ['method' => 'POST', 'endpoint' => '/trash/restore', 'label' => 'Restore'];
+$undone = json_decode($deletePage($deleteBridge, ['route' => '/a'])['content'][0]['text'], true);
+check(($undone['undo']['endpoint'] ?? null) === '/trash/restore' && str_contains($undone['message'] ?? '', 'deleted'), 'delete_page keeps the undo a plugin attached');
+
 // serverInfo.version is reported to every MCP client, so it must match the
 // version GPM installs. These drifted the first time blueprints.yaml was bumped.
 $blueprints = (string) file_get_contents(__DIR__ . '/../blueprints.yaml');
