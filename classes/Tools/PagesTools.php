@@ -200,7 +200,7 @@ final class PagesTools
                 'descriptor' => [
                     'name' => 'delete_page',
                     'title' => 'Delete Page',
-                    'description' => 'Delete a page. By default deletes the page and all children. Set lang to delete only a specific language translation. [Requires: api.pages.write]',
+                    'description' => 'Delete a page. By default deletes the page and all children. Set lang to delete only a specific language translation. When a plugin keeps deleted pages (page records say delete_recoverable), the result can carry its "undo": the api call that restores the page. [Requires: api.pages.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -212,10 +212,18 @@ final class PagesTools
                     ],
                     'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
                 ],
-                'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
-                    $api->request('DELETE', '/pages/' . ApiBridge::path($args), ['lang' => $args['lang'] ?? null]),
-                    successMessage: sprintf('Page "%s" deleted.', $args['route'] ?? '')
-                ),
+                'handler' => static function (ApiBridge $api, array $args): array {
+                    $resp = $api->request('DELETE', '/pages/' . ApiBridge::path($args), ['lang' => $args['lang'] ?? null]);
+                    $message = sprintf('Page "%s" deleted.', $args['route'] ?? '');
+
+                    // api 1.1.3+: 200 with {undo} instead of 204 when a plugin attached one.
+                    $undo = $resp['json']['data']['undo'] ?? null;
+                    if ($resp['status'] < 400 && is_array($undo)) {
+                        return ApiBridge::toolJson(['success' => true, 'message' => $message, 'undo' => $undo]);
+                    }
+
+                    return ApiBridge::fromResponse($resp, successMessage: $message);
+                },
             ],
 
             'transfer_page' => [
@@ -223,7 +231,7 @@ final class PagesTools
                 'descriptor' => [
                     'name' => 'transfer_page',
                     'title' => 'Transfer Page',
-                    'description' => 'Move or copy one page, selected with mode. mode=move relocates the page to a new parent and/or renames its slug — the page and all its children move together. mode=copy duplicates the page (with all its media files) to a new route, leaving the original in place. [Requires: api.pages.write]',
+                    'description' => 'Move or copy one page, selected with mode. mode=move relocates the page to a new parent and/or renames its slug — the page and all its children move together. mode=copy duplicates the page (with all its media files) to a new route, leaving the original in place; from api plugin 1.0.56 a copy of a numbered page is numbered after its last numbered sibling unless "order" sets the number. [Requires: api.pages.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -231,7 +239,7 @@ final class PagesTools
                             'route' => ['type' => 'string', 'description' => 'Page route to transfer (source route for mode=copy)'],
                             'parent' => ['type' => 'string', 'description' => 'New parent route, e.g. "/blog" (required for mode=move)'],
                             'slug' => ['type' => 'string', 'description' => 'New slug, if renaming (mode=move only)'],
-                            'order' => ['type' => 'integer', 'description' => 'Position among siblings (mode=move only)'],
+                            'order' => ['type' => 'integer', 'description' => 'Position among siblings (mode=move), or the order number of the copy\'s folder (mode=copy)'],
                             'destination_route' => ['type' => 'string', 'description' => 'Destination route for the copy (required for mode=copy)'],
                         ],
                         'required' => ['mode', 'route'],
@@ -254,7 +262,7 @@ final class PagesTools
                             'POST',
                             '/pages/' . ApiBridge::path($args) . '/copy',
                             [],
-                            ['route' => $args['destination_route'] ?? '']
+                            ['route' => $args['destination_route'] ?? ''] + ApiBridge::pick($args, ['order'])
                         )),
                     default => ApiBridge::toolError('Invalid mode. Must be one of: move, copy'),
                 },

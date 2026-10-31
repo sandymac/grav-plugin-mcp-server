@@ -55,13 +55,14 @@ final class UsersTools
                 'descriptor' => [
                     'name' => 'manage_users',
                     'title' => 'Manage Users',
-                    'description' => 'Create, update, or delete a user account. For "create": password and email are required too. For "update": only provided fields are changed; when the Login plugin confirms email changes, changing your OWN email does not take effect at once: the new address is shown as "email_pending" and a confirmation link is mailed to it. "cancel_email_change" drops your own waiting email change and "resend_email_change" mails its link again (your own account only). For "delete": you cannot delete your own account. [Requires: api.users.write]',
+                    'description' => 'Create, update, or delete a user account. For "create": password and email are required too. For "update": only provided fields are changed; changing your OWN password or email needs "current_password" (api plugin 1.1.0+ for the password, 1.1.4+ for the email), unless the account has no password yet (has_password false), and wrong ones count toward the sign-in lockout (429); when the Login plugin confirms email changes, changing your OWN email does not take effect at once: the new address is shown as "email_pending" and a confirmation link is mailed to it. "cancel_email_change" drops your own waiting email change and "resend_email_change" mails its link again (your own account only). For "delete": you cannot delete your own account. [Requires: api.users.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
                             'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete', 'cancel_email_change', 'resend_email_change'], 'description' => 'Action to perform'],
                             'username' => ['type' => 'string', 'description' => 'Username to create (alphanumeric, no spaces), update, or delete'],
                             'password' => ['type' => 'string', 'description' => 'Password (required for "create", new password for "update")'],
+                            'current_password' => ['type' => 'string', 'description' => 'Your current password, when an "update" changes your own password or email. Not needed when changing someone else\'s'],
                             'email' => ['type' => 'string', 'format' => 'email', 'description' => 'Email address (required for "create")'],
                             'fullname' => ['type' => 'string', 'description' => 'Full display name'],
                             'title' => ['type' => 'string', 'description' => 'Title/role description'],
@@ -91,7 +92,7 @@ final class UsersTools
                             'PATCH',
                             '/users/' . self::username($args),
                             [],
-                            ApiBridge::pick($args, ['email', 'fullname', 'title', 'state', 'password', 'access']),
+                            ApiBridge::pick($args, ['email', 'fullname', 'title', 'state', 'password', 'current_password', 'access']),
                             isset($args['etag']) ? ['If-Match' => (string) $args['etag']] : []
                         ), transform: self::withMetaMessage(...)),
                         'delete' => ApiBridge::fromResponse(

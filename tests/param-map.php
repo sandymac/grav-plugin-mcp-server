@@ -800,14 +800,22 @@ function argVariants(array $inputSchema): array
         if ($without !== $minimal) {
             $variants[] = $without;
         }
-        // Full-minus-two as well: a three-way exclusive selector
-        // (update_media_meta's route / path / paths) needs two optionals gone
-        // before any branch issues a request.
-        foreach (array_slice($optionals, $i + 1) as $other) {
+        // Full-minus-two and minus-three as well: update_media_meta's four-way
+        // exclusive selector (route + filename / route + filenames / path /
+        // paths) needs three optionals gone before its batch branches issue a
+        // request.
+        foreach (array_slice($optionals, $i + 1, null, true) as $j => $other) {
             $pair = $without;
             unset($pair[$other]);
             if ($pair !== $minimal) {
                 $variants[] = $pair;
+            }
+            foreach (array_slice($optionals, $j + 1) as $third) {
+                $triple = $pair;
+                unset($triple[$third]);
+                if ($triple !== $minimal) {
+                    $variants[] = $triple;
+                }
             }
         }
     }

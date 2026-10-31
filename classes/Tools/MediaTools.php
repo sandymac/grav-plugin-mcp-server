@@ -268,13 +268,14 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'update_media_meta',
                     'title' => 'Update Media Metadata',
-                    'description' => 'Set or clear a media file\'s metadata. Target exactly one of: "route" plus "filename" (page media), "path" (single site media file), or "paths" (batch, up to 50 site media files, set only). For "set", "fields" is merged into the existing metadata: an empty string (or empty tag list) removes that key; keys outside the site-configured managed list (default alt, title, caption, description, tags) are ignored; "tags" accepts a list or comma string. "clear" resets the managed keys and works on one file at a time. [Requires: api.media.write]',
+                    'description' => 'Set or clear a media file\'s metadata. Target exactly one of: "route" plus "filename" (page media), "route" plus "filenames" (batch, up to 50 media files of one page, set only; api plugin 1.1.3+), "path" (single site media file), or "paths" (batch, up to 50 site media files, set only). A batch checks "fields" once and then reports each file in its own results row. For "set", "fields" is merged into the existing metadata: an empty string (or empty tag list) removes that key; keys outside the site-configured managed list (default alt, title, caption, description, tags) are ignored; "tags" accepts a list or comma string. "clear" resets the managed keys and works on one file at a time. [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
                             'action' => ['type' => 'string', 'enum' => ['set', 'clear'], 'description' => 'Action to perform'],
                             'route' => ['type' => 'string', 'description' => 'Page route — requires "filename"'],
                             'filename' => ['type' => 'string', 'description' => 'Filename to update (e.g. "photo.jpg") — used with "route"'],
+                            'filenames' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Up to 50 filenames on the page, for batch "set" — used with "route" instead of "filename"'],
                             'path' => ['type' => 'string', 'description' => 'Relative path to a single site media file, including filename'],
                             'paths' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Relative paths to up to 50 site media files, for batch "set"'],
                             'fields' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Metadata fields to merge (required for "set")'],
@@ -289,20 +290,34 @@ final class MediaTools
 
                     $targets = array_filter([!empty($args['route']), !empty($args['path']), !empty($args['paths'])]);
                     if (\count($targets) !== 1) {
-                        return ApiBridge::toolJson(['error' => 'Target exactly one of: route (with filename), path, or paths']);
+                        return ApiBridge::toolJson(['error' => 'Target exactly one of: route (with filename or filenames), path, or paths']);
                     }
 
-                    if (!empty($args['route']) && empty($args['filename'])) {
-                        return ApiBridge::toolJson(['error' => 'filename is required when route is given']);
+                    if (!empty($args['route']) && empty($args['filename']) === empty($args['filenames'])) {
+                        return ApiBridge::toolJson(['error' => 'Give exactly one of filename or filenames with route']);
                     }
 
-                    if (!empty($args['paths']) && $action === 'clear') {
-                        return ApiBridge::toolJson(['error' => 'clear works on one file at a time; use path (or route+filename), not paths']);
+                    if (empty($args['route']) && !empty($args['filenames'])) {
+                        return ApiBridge::toolJson(['error' => 'filenames needs route']);
+                    }
+
+                    if ((!empty($args['paths']) || !empty($args['filenames'])) && $action === 'clear') {
+                        return ApiBridge::toolJson(['error' => 'clear works on one file at a time; use path (or route+filename), not paths or filenames']);
                     }
 
                     if ($action === 'set') {
                         if (empty($args['fields'])) {
                             return ApiBridge::toolJson(['error' => 'fields is required for set action']);
+                        }
+
+                        // The MCP-facing name is "filenames"; the batch endpoint reads "files".
+                        if (!empty($args['filenames'])) {
+                            return ApiBridge::fromResponse($api->request(
+                                'POST',
+                                '/pages/' . ApiBridge::path($args) . '/media/batch/meta',
+                                [],
+                                ['files' => $args['filenames'], 'fields' => $args['fields']]
+                            ));
                         }
 
                         if (!empty($args['route'])) {
