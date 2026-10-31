@@ -273,7 +273,7 @@ final class MediaTools
                         'type' => 'object',
                         'properties' => [
                             'action' => ['type' => 'string', 'enum' => ['set', 'clear'], 'description' => 'Action to perform'],
-                            'route' => ['type' => 'string', 'description' => 'Page route — requires "filename"'],
+                            'route' => ['type' => 'string', 'description' => 'Page route — requires "filename" or "filenames"'],
                             'filename' => ['type' => 'string', 'description' => 'Filename to update (e.g. "photo.jpg") — used with "route"'],
                             'filenames' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Up to 50 filenames on the page, for batch "set" — used with "route" instead of "filename"'],
                             'path' => ['type' => 'string', 'description' => 'Relative path to a single site media file, including filename'],
