@@ -39,7 +39,9 @@ read its rationale first — most were validated against a live deployment.
    invitation accept); binary downloads (thumbnails, raw media, backup download, audit export);
    SPA plumbing (script bundles, field discovery, list-UI filters/columns/row actions,
    dictionaries, `/data/resolve`, `/blueprint-files`, `/ping`, `/systeminfo`); Admin Next
-   preferences and branding; per-user 2FA (setup returns TOTP secrets) and avatars (multipart);
+   preferences and branding; per-user 2FA (setup returns TOTP secrets), passkeys (adding one is a WebAuthn ceremony
+   that needs a browser authenticator; renaming and removing follow 2FA; listing is adopted, as
+   `get_users` `passkeys`, since it carries no secret) and avatars (multipart);
    demo mode; GPM repository browsing, changelog and direct-install (`search_packages` and
    `manage_packages` cover the workflow); and the internal `GET /mcp/tools`. (The Twig-content
    events clear sat here too while it was a destructive route behind `api.reports.read` — [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35);

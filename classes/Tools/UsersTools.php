@@ -21,11 +21,12 @@ final class UsersTools
                 'descriptor' => [
                     'name' => 'get_users',
                     'title' => 'Get Users',
-                    'description' => 'List user accounts, or get one user\'s full details (including access permissions and groups) when "username" is given. [Requires: api.users.read]',
+                    'description' => 'List user accounts, or get one user\'s full details (including access permissions and groups) when "username" is given. With "username" and "passkeys": true, list that account\'s passkeys instead (names and dates, never the keys; "enabled" says whether the site offers passkeys, and on your own account "proof" says what changing them in Admin takes). Your own account needs only api.access. [Requires: api.users.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
                             'username' => ['type' => 'string', 'description' => 'Username to look up; omit to list users'],
+                            'passkeys' => ['type' => 'boolean', 'description' => 'With username: list the account\'s passkeys instead of its details'],
                             'search' => ['type' => 'string', 'description' => 'Search users by username, email, or name (listing only)'],
                             'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1, listing only)'],
                             'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Items per page (default: 50, listing only)'],
@@ -36,6 +37,12 @@ final class UsersTools
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
                     if (($args['username'] ?? '') !== '') {
+                        if (($args['passkeys'] ?? false) === true) {
+                            return ApiBridge::fromResponse(
+                                $api->request('GET', '/users/' . self::username($args) . '/passkeys')
+                            );
+                        }
+
                         return ApiBridge::fromResponse(
                             $api->request('GET', '/users/' . self::username($args)),
                             true

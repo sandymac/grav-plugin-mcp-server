@@ -1,3 +1,14 @@
+# v1.10.0
+## 2026-11-03
+
+1. [](#new)
+    * `list_pages` and `get_page_neighbors` take `editable`: only the pages you may edit (in a folder listing, folders that lead to them stay as `ancestor_only` rows), for editors who look after a few pages (api plugin 1.1.10, [getgrav/grav-plugin-admin2#209](https://github.com/getgrav/grav-plugin-admin2/issues/209)). With it, `get_page_neighbors` counts only siblings you may edit.
+    * `get_users` takes `passkeys`: with `username`, it lists that account's passkeys, names and dates but never the keys, and says whether the site offers passkeys (api plugin 1.1.10's `GET /users/{username}/passkeys`, which needs Login 3.12 or newer for passkeys to be on). Your own account needs only `api.access`, another's `api.users.read`.
+1. [](#improved)
+    * The media tools (`upload_media`, `delete_media`, `update_media_meta`) and `manage_blueprint_file` say that from api 1.1.10, on a page with page-level permission rules, changing its media or saving a file field into its folder needs the right to update that page, not only `api.media.write`.
+    * **The api floor rises to 1.1.10**, where `editable` landed. The Grav floor stays at 2.1.5.
+    * Triaged against api plugin 1.1.10. The rest passes straight through: page-level permissions now decide what `list_pages` returns, so pages your groups may not read or list are left out, and in a folder listing a folder you can't open that leads to one you can stays as an `ancestor_only` row with only its route, title, order and permissions; a single page's `permissions` carries `media`, whether you may change its media; a parent ordered by `publish_date` or `unpublish_date` lists its children in that order; `bulk_pages`' `reorganize` numbers against every page in the folder, including ones you can't see, so no two siblings share a number, its `reorder` keeps unlisted pages in place on a partial list, and neither names a hidden folder in its errors; user records carry a `passkeys` count, and `manage_users` can't write `passkeys` or `webauthn_id`. The other new passkey routes are skipped: sign-in is a public auth flow, adding a passkey is a WebAuthn ceremony that needs a browser authenticator, and renaming and removing one follow the 2FA routes, which are skipped too.
+
 # v1.9.0
 ## 2026-11-03
 
