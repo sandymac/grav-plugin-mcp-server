@@ -42,7 +42,7 @@ read its rationale first — most were validated against a live deployment.
    preferences and branding; per-user 2FA (setup returns TOTP secrets) and avatars (multipart);
    demo mode; GPM repository browsing, changelog and direct-install (`search_packages` and
    `manage_packages` cover the workflow); the internal `GET /mcp/tools`; and the Twig-content
-   allowlist add, because `update_config` on the `security` scope already covers it with ETag and
+   allowlist and trusted-partial adds (`twig_sandbox.trusted_partials`, api 1.1.9), because `update_config` on the `security` scope already covers it with ETag and
    environment support. (The Twig-content events clear sat here too while it was a destructive
    route behind `api.reports.read` — [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35);
    api 1.0.30 moved its gate to `api.system.write` and it became `clear_twig_content_events` in
