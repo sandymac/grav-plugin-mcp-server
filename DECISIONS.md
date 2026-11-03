@@ -41,12 +41,12 @@ read its rationale first — most were validated against a live deployment.
    dictionaries, `/data/resolve`, `/blueprint-files`, `/ping`, `/systeminfo`); Admin Next
    preferences and branding; per-user 2FA (setup returns TOTP secrets) and avatars (multipart);
    demo mode; GPM repository browsing, changelog and direct-install (`search_packages` and
-   `manage_packages` cover the workflow); the internal `GET /mcp/tools`; and the Twig-content
-   allowlist add, because `update_config` on the `security` scope already covers it with ETag and
-   environment support. (The Twig-content events clear sat here too while it was a destructive
-   route behind `api.reports.read` — [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35);
+   `manage_packages` cover the workflow); and the internal `GET /mcp/tools`. (The Twig-content
+   events clear sat here too while it was a destructive route behind `api.reports.read` — [getgrav/grav-plugin-api#35](https://github.com/getgrav/grav-plugin-api/issues/35);
    api 1.0.30 moved its gate to `api.system.write` and it became `clear_twig_content_events` in
-   1.3.2, which raised the api floor to 1.0.30 at the time.) `GET|PATCH /config/accounts` and
+   1.3.2, which raised the api floor to 1.0.30 at the time. The allowlist add sat here until 1.9.0
+   as covered by `update_config` on `security`, but that needs `api.config.write` where the route
+   needs only `admin.super`, so it became `manage_twig_sandbox`.) `GET|PATCH /config/accounts` and
    `GET /blueprints/config/accounts` are reached at runtime by the config and blueprint tools with
    scope `accounts`; they sit in the skip list only because param-map's sampler never generates
    that value.

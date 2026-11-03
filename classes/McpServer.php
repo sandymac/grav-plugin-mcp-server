@@ -22,7 +22,7 @@ use Psr\Http\Message\ServerRequestInterface;
 class McpServer
 {
     /** Keep in step with blueprints.yaml — tests/smoke.php fails if they drift. */
-    public const string VERSION = '1.8.0';
+    public const string VERSION = '1.9.0';
 
     /**
      * The commit a release zip was built from — git archive substitutes it
@@ -37,7 +37,7 @@ class McpServer
     }
 
     /** Matches the api dependency floor in blueprints.yaml — smoke asserts they agree. */
-    public const string MIN_API_VERSION = '1.1.5';
+    public const string MIN_API_VERSION = '1.1.9';
     public const array SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'];
 
     private ToolRegistry $tools;
@@ -247,8 +247,9 @@ class McpServer
         }
 
         // Tools re-present this key to the api plugin, which authenticates it
-        // again itself; the scopes and the account's resolved permissions only
-        // filter what tools/list shows.
+        // again and enforces its own permissions; the scopes and the account's
+        // resolved permissions decide which tools tools/list shows and
+        // tools/call accepts.
         $apiKey = $request->getHeaderLine('X-API-Key') ?: null;
         $this->tools->configure($apiKey, $authenticator->getAuthenticatedScopes(), $user);
         $this->resources->configure($apiKey);
