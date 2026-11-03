@@ -1,3 +1,12 @@
+# v1.10.0
+## 2026-11-03
+
+1. [](#new)
+    * `list_pages` and `get_page_neighbors` take `editable`: only the pages you may edit (and, in a folder listing, the readable folders that lead to them, flagged `ancestor_only`), for editors who look after a few pages (api plugin 1.1.10, [getgrav/grav-plugin-admin2#209](https://github.com/getgrav/grav-plugin-admin2/issues/209)). With it, `get_page_neighbors` counts only siblings you may edit.
+1. [](#improved)
+    * **The api floor rises to 1.1.10**, where `editable` landed. The Grav floor stays at 2.1.5.
+    * Triaged against api plugin 1.1.10. The rest passes straight through: page-level permissions now decide what `list_pages` returns, so pages your groups may not read or list are left out, and in a folder listing a folder you can't open that leads to one you can stays as an `ancestor_only` row with only its title and place in the tree; a single page's `permissions` carries `media`, whether you may change its media; on a page with page-level rules, changing its media needs the right to update that page, not only `api.media.write`; a parent ordered by `publish_date` or `unpublish_date` lists its children in that order; `bulk_pages`' `reorganize` numbers against every page in the folder, including ones you can't see, so no two siblings share a number, its `reorder` keeps unlisted pages in place on a partial list, and neither names a hidden folder in its errors; user records carry a `passkeys` count, and `manage_users` can't write `passkeys` or `webauthn_id`. The new passkey routes are skipped like 2FA: sign-in is a public auth flow, adding a passkey is a WebAuthn ceremony that needs a browser authenticator, and listing, renaming and removing one follow the 2FA routes.
+
 # v1.9.0
 ## 2026-11-03
 
