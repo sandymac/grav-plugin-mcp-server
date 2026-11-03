@@ -178,9 +178,6 @@ $skippedRoutes = [
     'GET /gpm/repository/themes' => 'GPM extra (search_packages covers discovery)',
     'GET /gpm/repository/{slug}' => 'GPM extra (search_packages covers discovery)',
     'POST /gpm/direct-install' => 'GPM extra (URL/zip install)',
-    // Twig-content allowlist and trusted-partial adds: see DECISIONS.md #4.
-    'POST /reports/twig-content/allowlist' => 'widens the Twig sandbox; update_config on the security scope covers it with ETag/env support',
-    'POST /reports/twig-content/trusted-partial' => 'widens the Twig sandbox; update_config on the security scope covers it with ETag/env support',
     // Reached at runtime (FastRoute static-first) by get_config/update_config/
     // get_blueprint with scope "accounts"; the sampler never generates that value.
     'GET /config/accounts' => 'covered at runtime; sampler artifact',

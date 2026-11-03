@@ -37,7 +37,7 @@ class McpServer
     }
 
     /** Matches the api dependency floor in blueprints.yaml — smoke asserts they agree. */
-    public const string MIN_API_VERSION = '1.1.6';
+    public const string MIN_API_VERSION = '1.1.9';
     public const array SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'];
 
     private ToolRegistry $tools;

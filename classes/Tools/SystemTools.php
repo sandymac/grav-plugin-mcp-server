@@ -207,7 +207,7 @@ final class SystemTools
                 'descriptor' => [
                     'name' => 'run_reports',
                     'title' => 'Run Reports',
-                    'description' => 'Generate diagnostic reports. "all" (default) runs the standard reports: security checks, YAML linting, and any plugin-contributed reports, each with a status and list of items. "twig_content_scan" lists pages whose content contains Twig and the tokens the sandbox would refuse. "twig_content_page" gives one page\'s gate/sandbox/leak status and recent blocked tokens (needs `route`). "twig_sandbox_policy" shows the effective allowlists (built-in defaults plus the site\'s additions). [Requires: api.reports.read]',
+                    'description' => 'Generate diagnostic reports. "all" (default) runs the standard reports: security checks, YAML linting, and any plugin-contributed reports, each with a status and list of items. "twig_content_scan" lists pages whose content contains Twig and the tokens the sandbox would refuse. "twig_content_page" gives one page\'s gate/sandbox/leak status and recent blocked tokens (needs `route`). "twig_sandbox_policy" shows the effective allowlists (built-in defaults plus the site\'s additions). To fix blocked tokens the scans report, use manage_twig_sandbox. [Requires: api.reports.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -248,6 +248,50 @@ final class SystemTools
                 'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
                     $api->request('DELETE', '/reports/twig-content/events')
                 ),
+            ],
+
+            'manage_twig_sandbox' => [
+                // Both routes call requireSuper() (the 'admin.super' scope cap).
+                'permission' => 'admin.super',
+                'descriptor' => [
+                    'name' => 'manage_twig_sandbox',
+                    'title' => 'Manage Twig Sandbox',
+                    'description' => 'Widen the Twig sandbox that page content runs in, to fix a block reported by run_reports. Both actions widen it: "allow" adds one tag, filter, function, method or property to the allowlist (an allowed filter or function becomes usable by every page editor); "trust_partial" trusts one theme or plugin template. When a run_reports Twig-in-Content event carries a `partial`, prefer "trust_partial" with that name over allowing the blocked token; otherwise the event\'s `allowlist` descriptor gives the `rule`/`token`/`class` for "allow". Adds only when the value is absent, and resolves the matching report events. "trust_partial" needs Grav 2.2.18 or newer. Super-admin only. [Requires: admin.super]',
+                    'inputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'action' => ['type' => 'string', 'enum' => ['allow', 'trust_partial'], 'description' => 'Action to perform'],
+                            'rule' => ['type' => 'string', 'enum' => ['tag', 'filter', 'function', 'method', 'property'], 'description' => 'Allowlist to add to (required for "allow")'],
+                            'token' => ['type' => 'string', 'description' => 'Tag, filter, function, method or property name to allow (required for "allow")'],
+                            'class' => ['type' => 'string', 'description' => 'Owning class (required for "allow" with rule "method" or "property")'],
+                            'template' => ['type' => 'string', 'description' => 'Relative theme or plugin template name, e.g. "partials/teams.html.twig" (required for "trust_partial")'],
+                        ],
+                        'required' => ['action'],
+                        'additionalProperties' => false,
+                    ],
+                    'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'idempotentHint' => true],
+                ],
+                'handler' => static function (ApiBridge $api, array $args): array {
+                    $template = (string) ($args['template'] ?? '');
+                    $rule = (string) ($args['rule'] ?? '');
+                    $token = (string) ($args['token'] ?? '');
+                    $class = (string) ($args['class'] ?? '');
+
+                    return match ($args['action'] ?? null) {
+                        'allow' => $rule === '' || $token === ''
+                            ? ApiBridge::toolJson(['error' => 'rule and token are required for action "allow".'])
+                            : (in_array($rule, ['method', 'property'], true) && $class === ''
+                                ? ApiBridge::toolJson(['error' => 'class is required for action "allow" with rule "' . $rule . '".'])
+                                : ApiBridge::fromResponse($api->request('POST', '/reports/twig-content/allowlist', [], array_filter(
+                                    ['rule' => $rule, 'token' => $token, 'class' => $class],
+                                    static fn(string $v): bool => $v !== ''
+                                )))),
+                        'trust_partial' => $template === ''
+                            ? ApiBridge::toolJson(['error' => 'template is required for action "trust_partial".'])
+                            : ApiBridge::fromResponse($api->request('POST', '/reports/twig-content/trusted-partial', [], ['template' => $template])),
+                        default => ApiBridge::toolError('Invalid action. Must be one of: allow, trust_partial'),
+                    };
+                },
             ],
 
             'get_audit_log' => [
