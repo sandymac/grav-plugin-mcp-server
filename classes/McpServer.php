@@ -247,8 +247,9 @@ class McpServer
         }
 
         // Tools re-present this key to the api plugin, which authenticates it
-        // again itself; the scopes and the account's resolved permissions only
-        // filter what tools/list shows.
+        // again and enforces its own permissions; the scopes and the account's
+        // resolved permissions decide which tools tools/list shows and
+        // tools/call accepts.
         $apiKey = $request->getHeaderLine('X-API-Key') ?: null;
         $this->tools->configure($apiKey, $authenticator->getAuthenticatedScopes(), $user);
         $this->resources->configure($apiKey);
