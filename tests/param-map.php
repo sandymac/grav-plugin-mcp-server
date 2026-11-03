@@ -166,7 +166,6 @@ $skippedRoutes = [
     'GET /auth/passkey' => 'public auth flow (passkey sign-in)',
     'POST /auth/passkey/options' => 'public auth flow (passkey sign-in)',
     'POST /auth/passkey' => 'public auth flow (passkey sign-in)',
-    'GET /users/{username}/passkeys' => 'passkeys (same split as 2FA)',
     'POST /users/{username}/passkeys/options' => 'passkeys: WebAuthn ceremony needs a browser authenticator',
     'POST /users/{username}/passkeys' => 'passkeys: WebAuthn ceremony needs a browser authenticator',
     'PATCH /users/{username}/passkeys/{id}' => 'passkeys',

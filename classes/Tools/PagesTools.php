@@ -20,7 +20,7 @@ final class PagesTools
                 'descriptor' => [
                     'name' => 'list_pages',
                     'title' => 'List Pages',
-                    'description' => 'List and search CMS pages with filtering by template, published status, visibility, parent route, and search. Supports sorting and pagination. Each row includes the page\'s full header/frontmatter unless fields is "summary". Pages your groups may not read or list are left out. In a folder listing (children_of or root), a folder you can\'t open that leads to a page you can is kept as an `ancestor_only` row with only its title and place in the tree. [Requires: api.pages.read]',
+                    'description' => 'List and search CMS pages with filtering by template, published status, visibility, parent route, and search. Supports sorting and pagination. Each row includes the page\'s full header/frontmatter unless fields is "summary". Pages your groups may not read or list are left out. In a folder listing (children_of or root), a folder you can\'t open that leads to a page you can is kept as an `ancestor_only` row with only its route, slug, title, menu, order, has_children and permissions. [Requires: api.pages.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -32,7 +32,7 @@ final class PagesTools
                             'parent' => ['type' => 'string', 'description' => 'Filter by parent route (e.g. "/blog")'],
                             'children_of' => ['type' => 'string', 'description' => 'Get direct children of this route'],
                             'root' => ['type' => 'boolean', 'description' => 'Only return root-level pages'],
-                            'editable' => ['type' => 'boolean', 'description' => 'Only pages you may edit. In a folder listing, a readable folder you can\'t edit that leads to one you can is kept as a full row flagged ancestor_only. A convenience filter, not a permission check'],
+                            'editable' => ['type' => 'boolean', 'description' => 'Only pages you may edit. In a folder listing, a folder you can\'t edit that leads to an editable page below it is kept, flagged ancestor_only. A convenience filter, not a permission check'],
                             'sort' => ['type' => 'string', 'enum' => ['date', 'title', 'slug', 'modified', 'order', 'default'], 'description' => 'Sort field'],
                             'order' => ['type' => 'string', 'enum' => ['asc', 'desc'], 'description' => 'Sort order'],
                             'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1)'],
@@ -110,7 +110,7 @@ final class PagesTools
                             'route' => ['type' => 'string', 'description' => 'Page route (e.g. "/blog/my-post")'],
                             'lang' => ['type' => 'string', 'description' => 'Language code'],
                             'translations' => ['type' => 'boolean', 'description' => 'Include translation info in each summary'],
-                            'editable' => ['type' => 'boolean', 'description' => 'Count only siblings you may edit, as list_pages editable does'],
+                            'editable' => ['type' => 'boolean', 'description' => 'Count only siblings you may edit, as list_pages editable does; a page you may read but not edit then gets index -1, and a parent you can read but not edit comes back flagged ancestor_only'],
                         ],
                         'required' => ['route'],
                         'additionalProperties' => false,
