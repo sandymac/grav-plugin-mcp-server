@@ -415,12 +415,13 @@ final class SystemTools
                 'descriptor' => [
                     'name' => 'get_dashboard',
                     'title' => 'Get Dashboard',
-                    'description' => 'Get dashboard info: site overview statistics (page counts, user counts, plugin/theme counts, media stats, last backup info), system notifications from getgrav.org, the Grav news feed, page-view popularity (today/week/month summary, 14-day chart, top pages), or a security exposure probe. The probe creates or reuses a sentinel file under user/data and returns its public `url` and `token`; fetch the url yourself — if the body equals the token, the user/ folder is exposed to the web. [Requires: api.system.read]',
+                    'description' => 'Get dashboard info: site overview statistics (page counts, user counts, plugin/theme counts, media stats, last backup info), system notifications from getgrav.org, the Grav news feed, page-view popularity (today/week/month summary, a chart over "range" with that period\'s total and the previous period\'s ("previous" is null when the history doesn\'t reach back that far), top pages), or a security exposure probe. The probe creates or reuses a sentinel file under user/data and returns its public `url` and `token`; fetch the url yourself — if the body equals the token, the user/ folder is exposed to the web. [Requires: api.system.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
                             'view' => ['type' => 'string', 'enum' => ['stats', 'notifications', 'feed', 'popularity', 'security_probe'], 'description' => 'Which view to return (default: stats)'],
                             'force' => ['type' => 'boolean', 'description' => 'Refresh the news feed instead of using the cached copy (feed view only)'],
+                            'range' => ['type' => 'string', 'enum' => ['7d', '14d', '30d', '90d', '12m'], 'description' => 'Chart time frame (popularity view only, default: 14d); 12m plots monthly totals. History is kept 365 days and 24 months by default'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -433,10 +434,14 @@ final class SystemTools
                             'force' => !empty($args['force']) ? 'true' : null,
                         ]));
                     }
+                    if ($view === 'popularity') {
+                        return ApiBridge::fromResponse($api->request('GET', '/dashboard/popularity', [
+                            'range' => $args['range'] ?? null,
+                        ]));
+                    }
 
                     $path = match ($view) {
                         'notifications' => '/dashboard/notifications',
-                        'popularity' => '/dashboard/popularity',
                         'security_probe' => '/dashboard/security/exposure-probe',
                         default => '/dashboard/stats',
                     };
