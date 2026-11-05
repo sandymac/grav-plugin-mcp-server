@@ -80,7 +80,7 @@ final class BlueprintsTools
                 'descriptor' => [
                     'name' => 'get_permissions',
                     'title' => 'Get Permissions',
-                    'description' => 'Get all registered permission actions and their hierarchy. Useful for understanding what access levels exist and configuring user permissions. [Requires: api.users.read]',
+                    'description' => 'Get all registered permission actions and their hierarchy. Useful for understanding what access levels exist and configuring user permissions. Each permission carries "grantable" (api plugin 1.1.12+): whether you may grant it with manage_users or manage_invitations — always true for a super-admin, otherwise only for permissions your own account holds. [Requires: api.users.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => new \stdClass(),

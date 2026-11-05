@@ -1,3 +1,13 @@
+# v1.11.0
+## 2026-11-04
+
+1. [](#new)
+    * `get_dashboard` takes `range` for the popularity view: `7d`, `14d` (the default), `30d`, `90d` or `12m`, where `12m` plots monthly totals (api plugin 1.1.11). The answer carries a `range` block with the period's total and the total of the period before it, `null` when the history doesn't reach back that far. Page view history is now kept for 365 days and 24 months by default, so the longer ranges have something to show.
+1. [](#improved)
+    * `manage_users`, `manage_invitations` and `get_permissions` say that from api 1.1.12 a user manager without super-admin can only grant permissions their own account holds: creating a user, editing a user's access and an invitation's access are refused with 403 otherwise. Grants an account already has are left alone when it's saved, and taking permissions away is always allowed. `get_permissions` marks each permission `grantable`, so an agent can check before it tries.
+    * **The api floor rises to 1.1.12**, where the grant rule landed. The Grav floor stays at 2.1.5.
+    * Triaged against api plugin 1.1.11 and 1.1.12 and Grav 2.2.23 and 2.2.24. The rest passes straight through: a scoped API key is held to its own scopes when a page's permission rules apply, so without `admin.super` in its scopes it can no longer override a page that denies an action, and changing a page's media checks the key's scopes rather than the account's (1.1.11, security); uploaded page media and blueprint files get the normal file permissions again instead of owner-only `0600` (1.1.11, [getgrav/grav-plugin-api#74](https://github.com/getgrav/grav-plugin-api/issues/74)); fields inside a `type: conditional` field keep their own names (1.1.11, [#75](https://github.com/getgrav/grav-plugin-api/issues/75)). The admin languages list (now open to every admin user) and the login providers list (now with `show_password_form`, a login-screen setting that leaves password logins working) stay skipped as admin-interface plumbing and public auth flow.
+
 # v1.10.0
 ## 2026-11-03
 
