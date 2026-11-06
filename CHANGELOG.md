@@ -1,3 +1,10 @@
+# v1.11.1
+## 2026-11-06
+
+1. [](#improved)
+    * `update_config` and `revert_config` say which scopes need a super-admin. From api 1.1.13 that includes the settings of the Login, Email, Git Sync and Admin2 plugins and of Login and Email provider plugins (`login-*`, `email-*`), as well as the API plugin's own, alongside the system, security, scheduler and backups scopes.
+    * Triaged against api plugin 1.1.13 and 1.1.14 and Grav 2.2.25 and 2.2.26. The rest passes straight through: adding your own media metadata field no longer takes the built-in alt, title, caption, description or tags fields out of the editor, and a field with `remove: true` hides one (1.1.14, [getgrav/grav-plugin-api#76](https://github.com/getgrav/grav-plugin-api/issues/76)); Admin2 saves page group permissions written as a map back as a map (1.1.14). The new `/admin-next/modules/...` routes, which serve plugin and theme web components so Admin2 can run under a strict Content-Security-Policy, stay skipped as admin-interface script bundles. The api floor stays at 1.1.12.
+
 # v1.11.0
 ## 2026-11-04
 

@@ -59,7 +59,7 @@ final class ConfigTools
                 'descriptor' => [
                     'name' => 'update_config',
                     'title' => 'Update Config',
-                    'description' => 'Update configuration values for a scope. Writes are differential — only keys that differ from parent defaults persist. `environment` targets an existing user/env/ folder (see `manage_environments`); pass `etag` from `get_config` for conflict detection. [Requires: api.config.write]',
+                    'description' => 'Update configuration values for a scope. Writes are differential — only keys that differ from parent defaults persist. `environment` targets an existing user/env/ folder (see `manage_environments`); pass `etag` from `get_config` for conflict detection. The system, security, scheduler and backups scopes and the api, admin2, login, email and git-sync plugins (plus login-* and email-* providers) need a super-admin. [Requires: api.config.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -95,7 +95,7 @@ final class ConfigTools
                 'descriptor' => [
                     'name' => 'revert_config',
                     'title' => 'Revert Config',
-                    'description' => 'Revert configuration to inherited values. `keys` drops those overrides from the scope\'s file in the targeted layer (environment or base user/config); `reset` deletes the whole override file so the scope falls back to the parent layer and shipped defaults. The system, security, plugins/api, scheduler and backups scopes need a super-admin. Returns the resulting effective config with an etag. [Requires: api.config.write]',
+                    'description' => 'Revert configuration to inherited values. `keys` drops those overrides from the scope\'s file in the targeted layer (environment or base user/config); `reset` deletes the whole override file so the scope falls back to the parent layer and shipped defaults. The system, security, scheduler and backups scopes and the api, admin2, login, email and git-sync plugins (plus login-* and email-* providers) need a super-admin. Returns the resulting effective config with an etag. [Requires: api.config.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
