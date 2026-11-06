@@ -36,11 +36,11 @@ final class ConfigTools
                 'descriptor' => [
                     'name' => 'get_config',
                     'title' => 'Get Config',
-                    'description' => 'Read configuration values for a specific scope. Scopes: "system", "site", "plugins/{name}" (e.g. "plugins/email"), "themes/{name}". Returns the config object and an ETag for use with update_config. `shadowed`, when present, lists the keys an environment folder or a GRAV_CONFIG__* server variable sets over this layer, with the value the site actually uses: saving those keys here changes nothing. [Requires: api.config.read]',
+                    'description' => 'Read one config scope, with an ETag for update_config. `shadowed`, when present, lists the keys an environment folder or a GRAV_CONFIG__* server variable sets over this layer, with the value the site actually uses: saving those keys here changes nothing. [Requires: api.config.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'scope' => ['type' => 'string', 'description' => 'Config scope (e.g. "system", "site", "plugins/email", "themes/quark")'],
+                            'scope' => ['type' => 'string', 'description' => 'e.g. "system", "site", "plugins/email", "themes/quark"'],
                         ],
                         'required' => ['scope'],
                         'additionalProperties' => false,
@@ -59,14 +59,14 @@ final class ConfigTools
                 'descriptor' => [
                     'name' => 'update_config',
                     'title' => 'Update Config',
-                    'description' => 'Update configuration values for a scope. Writes are differential — only keys that differ from parent defaults persist. `environment` targets an existing user/env/ folder (see `manage_environments`); pass `etag` from `get_config` for conflict detection. [Requires: api.config.write]',
+                    'description' => 'Update a config scope. Writes are differential — only keys that differ from parent defaults persist. Pass `etag` from `get_config` for conflict detection. The system, security, scheduler and backups scopes and the api, admin2, login, email and git-sync plugins (plus login-* and email-* providers) need a super-admin. [Requires: api.config.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'scope' => ['type' => 'string', 'description' => 'Config scope to update'],
-                            'values' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Configuration values to set (differential save vs defaults)'],
-                            'etag' => ['type' => 'string', 'description' => 'ETag from get_config for conflict detection'],
-                            'environment' => ['type' => 'string', 'description' => 'Target env folder name (e.g. "production"); routes write to user/env/<name>/config/. Must be created via manage_environments first'],
+                            'scope' => ['type' => 'string', 'description' => 'e.g. "site", "plugins/email"'],
+                            'values' => ['type' => 'object', 'additionalProperties' => true],
+                            'etag' => ['type' => 'string'],
+                            'environment' => ['type' => 'string', 'description' => 'Write to existing user/env/<name> (create with manage_environments first), e.g. "production"'],
                         ],
                         'required' => ['scope', 'values'],
                         'additionalProperties' => false,
@@ -95,15 +95,15 @@ final class ConfigTools
                 'descriptor' => [
                     'name' => 'revert_config',
                     'title' => 'Revert Config',
-                    'description' => 'Revert configuration to inherited values. `keys` drops those overrides from the scope\'s file in the targeted layer (environment or base user/config); `reset` deletes the whole override file so the scope falls back to the parent layer and shipped defaults. The system, security, plugins/api, scheduler and backups scopes need a super-admin. Returns the resulting effective config with an etag. [Requires: api.config.write]',
+                    'description' => 'Revert configuration to inherited values. `keys` drops those overrides from the scope\'s file in the targeted layer (environment or base user/config); `reset` deletes the whole override file so the scope falls back to the parent layer and shipped defaults. The system, security, scheduler and backups scopes and the api, admin2, login, email and git-sync plugins (plus login-* and email-* providers) need a super-admin. [Requires: api.config.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'scope' => ['type' => 'string', 'description' => 'Config scope to revert'],
-                            'keys' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Dotted config paths to remove from the scope\'s override file'],
-                            'reset' => ['type' => 'boolean', 'description' => 'Remove the whole override file for the scope'],
-                            'etag' => ['type' => 'string', 'description' => 'ETag from get_config for conflict detection'],
-                            'environment' => ['type' => 'string', 'description' => 'Target env folder name (e.g. "production"); routes write to user/env/<name>/config/. Must be created via manage_environments first'],
+                            'scope' => ['type' => 'string', 'description' => 'e.g. "site", "plugins/email"'],
+                            'keys' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Dotted config paths'],
+                            'reset' => ['type' => 'boolean'],
+                            'etag' => ['type' => 'string', 'description' => 'From get_config, for conflict detection'],
+                            'environment' => ['type' => 'string', 'description' => 'Existing user/env/<name> (create with manage_environments first), e.g. "production"'],
                         ],
                         'required' => ['scope'],
                         'additionalProperties' => false,

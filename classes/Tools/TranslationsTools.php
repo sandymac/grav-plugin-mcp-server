@@ -21,14 +21,14 @@ final class TranslationsTools
                 'descriptor' => [
                     'name' => 'get_translations',
                     'title' => 'Get Translations',
-                    'description' => 'Overview of the site\'s interface translation strings (language files), not page content. Views: "languages" lists every configured language and which ones have local overrides; "sources" lists the providers that ship strings for a language (system:core, plugin:<slug>, theme:<slug>, user:overrides) with key counts and namespaces; "coverage" reports total/translated/missing/overridden counts per language against a source language; "overrides" returns the raw YAML of one language\'s override file (lang is required, optionally narrowed to one namespace); "machine_translation" probes whether machine translation is available and why not, plus the per-request key limit; "import_status" reports what the legacy translation-strings plugin still holds waiting to be imported. [Requires: api.translations.read]',
+                    'description' => 'Interface strings (language files), not page translations. "languages": configured languages and which have local overrides. "sources": providers shipping strings for a language (system:core, plugin:<slug>, theme:<slug>, user:overrides) with key counts. "coverage": translated/missing/overridden counts per language against a source language. "overrides": one language\'s override file as raw YAML (lang required; namespace narrows it). "machine_translation": whether it is available, why not, and the per-request key limit. "import_status": what the legacy translation-strings plugin still holds awaiting import. [Requires: api.translations.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'view' => ['type' => 'string', 'enum' => ['languages', 'sources', 'coverage', 'overrides', 'machine_translation', 'import_status'], 'description' => 'What to retrieve (default: languages)'],
-                            'lang' => ['type' => 'string', 'description' => 'Language code. Required for the overrides view (which file to show); for the sources view, which language to count keys for (default: the site default language)'],
-                            'source_lang' => ['type' => 'string', 'description' => 'Language to measure coverage against (coverage view only; default: the site default language)'],
-                            'namespace' => ['type' => 'string', 'description' => 'Limit the returned YAML to one namespace, e.g. "PLUGIN_ADMIN" (overrides view only)'],
+                            'view' => ['type' => 'string', 'enum' => ['languages', 'sources', 'coverage', 'overrides', 'machine_translation', 'import_status'], 'description' => 'Default: languages'],
+                            'lang' => ['type' => 'string', 'description' => 'Required for overrides; for sources, the language to count (default: site default language)'],
+                            'source_lang' => ['type' => 'string', 'description' => 'Coverage baseline language (default: site default language)'],
+                            'namespace' => ['type' => 'string', 'description' => 'Overrides view: one namespace only, e.g. "PLUGIN_ADMIN"'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -60,19 +60,19 @@ final class TranslationsTools
                 'descriptor' => [
                     'name' => 'search_translation_keys',
                     'title' => 'Search Translation Keys',
-                    'description' => 'Search interface translation keys across every provider, or fetch one key by name. Each row gives the key, its namespace, the source-language value, which providers ship it, its owner, and the value and state in each requested language. To find untranslated strings, pass status "missing" with langs ["fr"]. Filters: q matches a substring of the key or its source value; provider is an exact provider id from get_translations view "sources" (e.g. "system:core", "plugin:admin", "user:overrides"); namespace is the first dot segment of a key (e.g. "PLUGIN_ADMIN" for PLUGIN_ADMIN.SAVE). Results are paginated, at most 500 per page. [Requires: api.translations.read]',
+                    'description' => 'Search interface-string keys across all providers, or fetch one exact key. status "missing" plus langs (e.g. ["fr"]) finds untranslated strings. provider ids come from get_translations view "sources". [Requires: api.translations.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'key' => ['type' => 'string', 'description' => 'Exact dotted key (e.g. "PLUGIN_ADMIN.SAVE") to fetch on its own, with its value in every language; letters, digits, underscore, dot and hyphen only. Ignores the other filters'],
-                            'q' => ['type' => 'string', 'description' => 'Substring match over the key name or its source-language value'],
+                            'key' => ['type' => 'string', 'description' => 'Exact dotted key (e.g. "PLUGIN_ADMIN.SAVE") to fetch alone, with its value in every language; letters, digits, underscore, dot and hyphen only. Ignores the other filters'],
+                            'q' => ['type' => 'string', 'description' => 'Substring of the key name or its source-language value'],
                             'provider' => ['type' => 'string', 'description' => 'Exact provider id, e.g. "system:core", "plugin:admin", "theme:quark", "user:overrides"'],
                             'namespace' => ['type' => 'string', 'description' => 'First dot segment of the key, e.g. "PLUGIN_ADMIN"'],
-                            'status' => ['type' => 'string', 'enum' => ['all', 'shipped', 'overridden', 'missing', 'unknown'], 'description' => 'Filter by translation state in the requested languages (default: all)'],
+                            'status' => ['type' => 'string', 'enum' => ['all', 'shipped', 'overridden', 'missing', 'unknown'], 'description' => 'State in the requested languages (default: all)'],
                             'langs' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Language codes to report values for, e.g. ["fr", "de"]'],
-                            'source_lang' => ['type' => 'string', 'description' => 'Language the source_value column comes from (default: the site default language)'],
-                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1)'],
-                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 500, 'description' => 'Rows per page (default: 50, max: 500)'],
+                            'source_lang' => ['type' => 'string', 'description' => 'Language of the source_value column (default: site default language)'],
+                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Default 1'],
+                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 500, 'description' => 'Default 50'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -107,17 +107,17 @@ final class TranslationsTools
                 'descriptor' => [
                     'name' => 'manage_translation_overrides',
                     'title' => 'Manage Translation Overrides',
-                    'description' => 'Edit a language\'s interface-string overrides, stored in user/languages/<lang>.yaml and applied on top of whatever core, plugins and themes ship. Keys are flat dotted strings, e.g. "PLUGIN_ADMIN.SAVE". Action "set" patches individual keys: pass set for values to write and unset for keys to delete — deleting is unset, never a null value (null is stored as an empty string). A value equal to the shipped translation is not stored; it is treated as a removal and reported under "reverted". Action "replace" swaps the whole override file for the YAML you provide, or only one namespace when namespace is given; an empty yaml string clears that scope. Action "import_legacy" merges the old translation-strings plugin\'s configured overrides into these files (plugin values win on conflict) and takes no other arguments — it leaves that plugin enabled, so disable it afterwards or it keeps outranking these files. Both write actions flush Grav\'s compiled language cache. [Requires: api.translations.write]',
+                    'description' => 'Edit one language\'s interface-string overrides (user/languages/<lang>.yaml), layered over the strings core, plugins and themes ship. Keys are flat dotted strings, e.g. "PLUGIN_ADMIN.SAVE". "set": write keys in set, delete keys in unset — never a null value (null is stored as ""); a value equal to the shipped string is not stored but treated as a removal and reported under "reverted". "replace": replace the whole file, or one namespace when namespace is given, with yaml; "" clears that scope. "import_legacy": merge the old translation-strings plugin\'s overrides in (plugin values win) and takes no other arguments; that plugin stays enabled and keeps outranking these files until you disable it. [Requires: api.translations.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['set', 'replace', 'import_legacy'], 'description' => 'Action to perform'],
-                            'lang' => ['type' => 'string', 'description' => 'Language code whose override file to edit (required for set and replace)'],
-                            'set' => ['type' => 'object', 'additionalProperties' => ['type' => 'string'], 'description' => 'Dotted key => translated string, e.g. {"PLUGIN_ADMIN.SAVE": "Enregistrer"} (set action)'],
-                            'unset' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Dotted keys to remove from the override file (set action)'],
-                            'yaml' => ['type' => 'string', 'description' => 'Replacement YAML mapping for the file, or for one namespace when namespace is given; empty string clears that scope (required for replace)'],
-                            'namespace' => ['type' => 'string', 'description' => 'Limit a replace to one namespace, e.g. "PLUGIN_ADMIN" (replace action only)'],
-                            'source_lang' => ['type' => 'string', 'description' => 'Language used to shape the echoed result rows (set action only)'],
+                            'action' => ['type' => 'string', 'enum' => ['set', 'replace', 'import_legacy']],
+                            'lang' => ['type' => 'string', 'description' => 'Language whose override file to edit; required for set and replace'],
+                            'set' => ['type' => 'object', 'additionalProperties' => ['type' => 'string'], 'description' => 'Dotted key => string, e.g. {"PLUGIN_ADMIN.SAVE": "Enregistrer"}'],
+                            'unset' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Dotted keys to remove'],
+                            'yaml' => ['type' => 'string', 'description' => 'YAML mapping; required for replace'],
+                            'namespace' => ['type' => 'string', 'description' => 'For replace, e.g. "PLUGIN_ADMIN"'],
+                            'source_lang' => ['type' => 'string', 'description' => 'Shapes the echoed result rows (set only)'],
                         ],
                         'required' => ['action'],
                         'additionalProperties' => false,
@@ -145,7 +145,7 @@ final class TranslationsTools
                 'descriptor' => [
                     'name' => 'machine_translate',
                     'title' => 'Machine Translate',
-                    'description' => 'Propose machine translations for interface-string keys. Runs synchronously and returns one proposal per key with ok and a reason when it failed. It writes nothing — review the proposals, then commit the ones you want with manage_translation_overrides action "set". Requires the third-party ai-translate plugin installed, enabled and provider-configured; check get_translations view "machine_translation" first, otherwise the call fails with an explanation of what is missing. ICU plural/select messages are never machine-translated; placeholders in a string are protected. At most 200 keys per call. [Requires: api.translations.write]',
+                    'description' => 'Propose machine translations for interface-string keys. Writes nothing: review, then commit with manage_translation_overrides action "set". Needs the third-party ai-translate plugin installed, enabled and provider-configured — check get_translations view "machine_translation" first, or the call fails. ICU plural/select messages are never machine-translated; placeholders are protected. [Requires: api.translations.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [

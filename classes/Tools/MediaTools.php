@@ -34,10 +34,10 @@ final class MediaTools
                         'properties' => [
                             'route' => ['type' => 'string', 'description' => 'Page route (e.g. "/blog/my-post") — lists that page\'s media'],
                             'path' => ['type' => 'string', 'description' => 'Site media subfolder to browse (e.g. "images/2024"); only without "route"'],
-                            'search' => ['type' => 'string', 'description' => 'Search files by name (site media only)'],
-                            'type' => ['type' => 'string', 'enum' => ['image', 'video', 'audio', 'document'], 'description' => 'Filter by file type (site media only)'],
-                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1, site media only)'],
-                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Items per page (default: 50, site media only)'],
+                            'search' => ['type' => 'string', 'description' => 'Search by filename'],
+                            'type' => ['type' => 'string', 'enum' => ['image', 'video', 'audio', 'document']],
+                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Default 1'],
+                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Default 50'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -67,7 +67,7 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'upload_media',
                     'title' => 'Upload Media',
-                    'description' => 'Upload media files. Give "route" to attach the files to that page; leave "route" out to upload into the site media library, where "path" names an optional subfolder. Each file needs a filename and base64-encoded content. Supports images, videos, documents, and other file types. On a page with page-level permission rules, page media also needs the right to update that page (api plugin 1.1.10+). [Requires: api.media.write]',
+                    'description' => 'Upload media files. Give "route" to attach the files to that page; leave "route" out to upload into the site media library, where "path" names an optional subfolder. Each file needs a filename and base64-encoded content. Supports images, videos, documents, and other file types. On a page with page-level rules, page media also needs update on that page. [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -116,7 +116,7 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'delete_media',
                     'title' => 'Delete Media',
-                    'description' => 'Delete a media file. Give "route" plus "filename" to delete a page\'s media; leave "route" out and give "path" to delete from the site media library. On a page with page-level permission rules, page media also needs the right to update that page (api plugin 1.1.10+). [Requires: api.media.write]',
+                    'description' => 'Delete a media file. Give "route" plus "filename" to delete a page\'s media; leave "route" out and give "path" to delete from the site media library. On a page with page-level rules, page media also needs update on that page. [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -160,7 +160,7 @@ final class MediaTools
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'rename', 'delete', 'order'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'rename', 'delete', 'order']],
                             'path' => ['type' => 'string', 'description' => 'Folder path (e.g. "images/2024"); the current path for rename; "" means the media root for order'],
                             'new_path' => ['type' => 'string', 'description' => 'New folder path (required for rename)'],
                             'order' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Filenames in the desired display order (required for order action); unlisted files trail; an empty array removes the custom order'],
@@ -268,16 +268,16 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'update_media_meta',
                     'title' => 'Update Media Metadata',
-                    'description' => 'Set or clear a media file\'s metadata. Target exactly one of: "route" plus "filename" (page media), "route" plus "filenames" (batch, up to 50 media files of one page, set only; api plugin 1.1.3+), "path" (single site media file), or "paths" (batch, up to 50 site media files, set only). A batch checks "fields" once and then reports each file in its own results row. For "set", "fields" is merged into the existing metadata: an empty string (or empty tag list) removes that key; keys outside the site-configured managed list (default alt, title, caption, description, tags) are ignored; "tags" accepts a list or comma string. "clear" resets the managed keys and works on one file at a time. On a page with page-level permission rules, page media also needs the right to update that page (api plugin 1.1.10+). [Requires: api.media.write]',
+                    'description' => 'Set or clear media metadata. Target exactly one: route+filename (one page file), route+filenames (batch, files of that page), path (one site media file), or paths (batch, site media files). Batches are "set" only; "clear" resets the managed keys of one file. "set" merges fields into the existing metadata: "" or an empty tag list removes that key; keys outside the site-configured managed list (default alt, title, caption, description, tags) are ignored; tags is a list or comma string. On a page with page-level rules, page media also needs update on that page. [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['set', 'clear'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['set', 'clear']],
                             'route' => ['type' => 'string', 'description' => 'Page route — requires "filename" or "filenames"'],
-                            'filename' => ['type' => 'string', 'description' => 'Filename to update (e.g. "photo.jpg") — used with "route"'],
-                            'filenames' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Up to 50 filenames on the page, for batch "set" — used with "route" instead of "filename"'],
-                            'path' => ['type' => 'string', 'description' => 'Relative path to a single site media file, including filename'],
-                            'paths' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Relative paths to up to 50 site media files, for batch "set"'],
+                            'filename' => ['type' => 'string', 'description' => 'e.g. "photo.jpg"; with "route"'],
+                            'filenames' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Batch "set": filenames on the page, with "route" instead of "filename"'],
+                            'path' => ['type' => 'string', 'description' => 'Relative path to one site media file, including filename'],
+                            'paths' => ['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 1, 'maxItems' => 50, 'description' => 'Batch "set": relative site media paths'],
                             'fields' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Metadata fields to merge (required for "set")'],
                         ],
                         'required' => ['action'],
@@ -404,7 +404,7 @@ final class MediaTools
                 'type' => 'object',
                 'properties' => [
                     'filename' => ['type' => 'string', 'description' => 'Filename with extension (e.g. "photo.jpg")'],
-                    'content_base64' => ['type' => 'string', 'description' => 'Base64-encoded file content'],
+                    'content_base64' => ['type' => 'string'],
                     'content_type' => ['type' => 'string', 'description' => $contentTypeDescription],
                 ],
                 'required' => ['filename', 'content_base64'],
@@ -412,7 +412,6 @@ final class MediaTools
             ],
             'minItems' => 1,
             'maxItems' => self::MAX_UPLOAD_FILES,
-            'description' => 'Array of files to upload',
         ];
     }
 
