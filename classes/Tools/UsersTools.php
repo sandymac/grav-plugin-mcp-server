@@ -27,9 +27,9 @@ final class UsersTools
                         'properties' => [
                             'username' => ['type' => 'string', 'description' => 'Username to look up; omit to list users'],
                             'passkeys' => ['type' => 'boolean', 'description' => 'With username: list the account\'s passkeys instead of its details'],
-                            'search' => ['type' => 'string', 'description' => 'Search users by username, email, or name (listing only)'],
-                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1, listing only)'],
-                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Items per page (default: 50, listing only)'],
+                            'search' => ['type' => 'string', 'description' => 'Matches username, email, or name'],
+                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Default 1'],
+                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Default 50'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -62,20 +62,20 @@ final class UsersTools
                 'descriptor' => [
                     'name' => 'manage_users',
                     'title' => 'Manage Users',
-                    'description' => 'Create, update, or delete a user account. For "create": password and email are required too. For "update": only provided fields are changed; changing your OWN password or email needs "current_password" (api plugin 1.1.0+ for the password, 1.1.4+ for the email), unless the account has no password yet (has_password false), and wrong ones count toward the sign-in lockout (429); when the Login plugin confirms email changes, changing your OWN email does not take effect at once: the new address is shown as "email_pending" and a confirmation link is mailed to it. "cancel_email_change" drops your own waiting email change and "resend_email_change" mails its link again (your own account only). For "delete": you cannot delete your own account. Unless you are super-admin, "access" may only grant permissions your own account holds (api plugin 1.1.12+, 403 naming the permission otherwise); on "update", grants the account already has are left alone, and taking permissions away is always allowed. get_permissions marks which ones you can grant. [Requires: api.users.write]',
+                    'description' => 'Create, update, or delete a user account. "create" also needs password and email. "update" changes only the fields you send. Changing your OWN password or email needs current_password unless the account has no password yet (has_password false); a wrong one counts toward the sign-in lockout (429). When the Login plugin confirms email changes, your own new email is held as "email_pending" until the link mailed to it is used. "cancel_email_change" drops that pending change; "resend_email_change" mails the link again (your own account only). You cannot delete your own account. Unless you are super-admin, access may only grant permissions your own account holds (403 names the permission); on update, grants the account already has are left alone, and removing permissions is always allowed. get_permissions marks which ones you can grant. [Requires: api.users.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete', 'cancel_email_change', 'resend_email_change'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete', 'cancel_email_change', 'resend_email_change']],
                             'username' => ['type' => 'string', 'description' => 'Username to create (alphanumeric, no spaces), update, or delete'],
                             'password' => ['type' => 'string', 'description' => 'Password (required for "create", new password for "update")'],
                             'current_password' => ['type' => 'string', 'description' => 'Your current password, when an "update" changes your own password or email. Not needed when changing someone else\'s'],
                             'email' => ['type' => 'string', 'format' => 'email', 'description' => 'Email address (required for "create")'],
-                            'fullname' => ['type' => 'string', 'description' => 'Full display name'],
-                            'title' => ['type' => 'string', 'description' => 'Title/role description'],
-                            'state' => ['type' => 'string', 'enum' => ['enabled', 'disabled'], 'description' => 'Account state'],
+                            'fullname' => ['type' => 'string'],
+                            'title' => ['type' => 'string'],
+                            'state' => ['type' => 'string', 'enum' => ['enabled', 'disabled']],
                             'access' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Permission access map'],
-                            'etag' => ['type' => 'string', 'description' => 'ETag for conflict detection (for "update")'],
+                            'etag' => ['type' => 'string', 'description' => 'For conflict detection on update'],
                         ],
                         'required' => ['action', 'username'],
                         'additionalProperties' => false,
@@ -128,7 +128,7 @@ final class UsersTools
                         'type' => 'object',
                         'properties' => [
                             'username' => ['type' => 'string', 'description' => 'Username whose API keys to manage'],
-                            'action' => ['type' => 'string', 'enum' => ['list', 'create', 'revoke'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['list', 'create', 'revoke']],
                             'name' => ['type' => 'string', 'description' => 'Name for new key (required for "create")'],
                             'expiry_days' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Days until expiry (for "create")'],
                             'key_id' => ['type' => 'string', 'description' => 'Key ID to revoke (required for "revoke")'],
@@ -186,9 +186,9 @@ final class UsersTools
                         'type' => 'object',
                         'properties' => [
                             'name' => ['type' => 'string', 'description' => 'Group name to look up; omit to list groups'],
-                            'search' => ['type' => 'string', 'description' => 'Search groups by name (listing only)'],
-                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1, listing only)'],
-                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Items per page (default: 50, listing only)'],
+                            'search' => ['type' => 'string', 'description' => 'Matches group name'],
+                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Default 1'],
+                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Default 50'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -217,11 +217,11 @@ final class UsersTools
                 'descriptor' => [
                     'name' => 'manage_groups',
                     'title' => 'Manage Groups',
-                    'description' => 'Create, update, or delete a permission group (super-admin only). "access" is stored verbatim and is REPLACED WHOLESALE on update, so send the complete map — review it carefully, since a group can grant api.super. A group cannot be renamed. Deleting a group does not check whether any account still references it. [Requires: admin.super]',
+                    'description' => 'Create, update, or delete a permission group. "access" is stored verbatim and is REPLACED WHOLESALE on update, so send the complete map — review it carefully, since a group can grant api.super. A group cannot be renamed. Deleting a group does not check whether any account still references it. [Requires: admin.super]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete']],
                             'name' => ['type' => 'string', 'pattern' => '^[a-zA-Z0-9_-]{1,200}$', 'description' => 'Group name to create, update, or delete (cannot be changed once created)'],
                             'readable_name' => ['type' => 'string', 'description' => 'Human-readable display name'],
                             'description' => ['type' => 'string', 'description' => 'Group description'],
@@ -278,11 +278,11 @@ final class UsersTools
                 'descriptor' => [
                     'name' => 'manage_invitations',
                     'title' => 'Manage Invitations',
-                    'description' => 'List, create, delete, or resend a user invitation. For "create": "email" is required; returns the raw token and an accept link — hand the link to the invitee. Only one pending invitation per email is kept; a new one replaces it. "expiration" is in seconds and defaults to 7 days; values under 300 fall back to the default and api plugin 1.0.38+ caps it at 30 days. Callers who are not super-admin have "groups" dropped and any super flag in "access" stripped silently, and from api plugin 1.1.12 a "create" whose "access" grants any other permission the caller\'s own account doesn\'t hold is refused with 403 (get_permissions marks which ones you can grant). "resend" 404s for an expired invitation and 422s when site email isn\'t configured. "list" also purges expired invitations. [Requires: api.users.write]',
+                    'description' => 'List, create, delete, or resend a user invitation. "create" needs email and returns the raw token and an accept link — hand the link to the invitee. One pending invitation per email; a new one replaces it. expiration is in seconds (default 7 days, capped at 30 days; under 300 falls back to the default). Non-super-admin callers have groups dropped and any super flag in access stripped silently; a "create" whose access grants any other permission your own account doesn\'t hold is refused with 403 (get_permissions marks which ones you can grant). "resend" 404s for an expired invitation and 422s when site email isn\'t configured. "list" also purges expired invitations. [Requires: api.users.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['list', 'create', 'delete', 'resend'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['list', 'create', 'delete', 'resend']],
                             'email' => ['type' => 'string', 'format' => 'email', 'description' => 'Invitee email (required for "create")'],
                             'fullname' => ['type' => 'string', 'description' => 'Invitee full name'],
                             'access' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Permission access map to grant on acceptance'],

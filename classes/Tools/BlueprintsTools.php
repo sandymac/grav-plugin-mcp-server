@@ -46,7 +46,7 @@ final class BlueprintsTools
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'type' => ['type' => 'string', 'enum' => ['page', 'plugin', 'theme', 'user', 'config', 'group', 'group_new'], 'description' => 'Blueprint type'],
+                            'type' => ['type' => 'string', 'enum' => ['page', 'plugin', 'theme', 'user', 'config', 'group', 'group_new']],
                             'name' => ['type' => 'string', 'description' => 'Blueprint name: template name for "page", plugin/theme slug for "plugin"/"theme", scope for "config"; ignored for "user", "group" and "group_new" (pass the type again)'],
                         ],
                         'required' => ['type', 'name'],
@@ -80,7 +80,7 @@ final class BlueprintsTools
                 'descriptor' => [
                     'name' => 'get_permissions',
                     'title' => 'Get Permissions',
-                    'description' => 'Get all registered permission actions and their hierarchy. Useful for understanding what access levels exist and configuring user permissions. Each permission carries "grantable" (api plugin 1.1.12+): whether you may grant it with manage_users or manage_invitations — always true for a super-admin, otherwise only for permissions your own account holds. [Requires: api.users.read]',
+                    'description' => 'Get all registered permission actions and their hierarchy. Each permission carries "grantable": whether you may grant it with manage_users or manage_invitations — always true for a super-admin, otherwise only for permissions your own account holds. [Requires: api.users.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => new \stdClass(),
@@ -112,15 +112,15 @@ final class BlueprintsTools
                 'descriptor' => [
                     'name' => 'manage_blueprint_file',
                     'title' => 'Manage Blueprint File',
-                    'description' => 'Upload or delete a file referenced by a blueprint file/upload field (theme/plugin config form, account avatar, etc.). Upload returns the user-rooted path to pass to a later delete action; delete is idempotent. api plugin 1.0.38+ refuses `.md` and CSS files unless the blueprint field allows them via `allow_extensions`, and under user/accounts/ only the avatar of the calling account can be deleted without api.users.write. From api plugin 1.1.4, uploading into or deleting from a theme or plugin folder also needs api.config.write, its templates folder or anything outside user/ needs super admin, and filenames ending in a space or dot, or carrying control or invisible characters, are refused. From api plugin 1.1.10, a file saved into a page\'s folder on a page with page-level permission rules also needs the right to update that page. [Requires: api.media.write]',
+                    'description' => 'Upload or delete a file referenced by a blueprint file/upload field (theme/plugin config form, account avatar, etc.). Upload returns the user-rooted path to pass to a later delete; delete is idempotent. Refused: `.md` and CSS files unless the field\'s `allow_extensions` permits them; filenames ending in a space or dot, or carrying control or invisible characters. Extra permissions: under user/accounts/, deleting anything but your own avatar needs api.users.write; a theme or plugin folder needs api.config.write, and its templates folder or anything outside user/ needs super-admin; a file saved into a page\'s folder on a page with page-level rules also needs update on that page. [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['upload', 'delete'], 'description' => 'Action to perform'],
-                            'destination' => ['type' => 'string', 'description' => 'Blueprint destination (stream, self@:subpath, or relative user-rooted path) (required for upload)'],
-                            'scope' => ['type' => 'string', 'description' => 'Owning scope: plugins/<slug>, themes/<slug>, pages/<route>, or users/<username> (required for upload)'],
-                            'filename' => ['type' => 'string', 'description' => 'Filename for the uploaded file (required for upload)'],
-                            'content_base64' => ['type' => 'string', 'description' => 'File contents, base64-encoded (required for upload)'],
+                            'action' => ['type' => 'string', 'enum' => ['upload', 'delete']],
+                            'destination' => ['type' => 'string', 'description' => 'Blueprint destination (stream, self@:subpath, or relative user-rooted path); required for upload'],
+                            'scope' => ['type' => 'string', 'description' => 'Owning scope: plugins/<slug>, themes/<slug>, pages/<route>, or users/<username>; required for upload'],
+                            'filename' => ['type' => 'string', 'description' => 'Required for upload'],
+                            'content_base64' => ['type' => 'string', 'description' => 'Required for upload'],
                             'content_type' => ['type' => 'string', 'description' => 'MIME type, auto-detected from extension if omitted (upload only)'],
                             'path' => ['type' => 'string', 'description' => 'User-rooted logical path returned from a prior upload action (required for delete)'],
                         ],

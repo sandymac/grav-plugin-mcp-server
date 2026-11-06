@@ -20,14 +20,14 @@ final class WebhooksTools
                 'descriptor' => [
                     'name' => 'get_webhooks',
                     'title' => 'Get Webhooks',
-                    'description' => 'List all configured webhooks with their URLs, events, enabled flag, and failure count; get one webhook\'s full configuration when "webhook_id" is given with the list view; or view the delivery log for one webhook, showing each attempt with status code, success, response time, and timestamp. [Requires: api.webhooks.read]',
+                    'description' => 'List webhook configurations and status, get one webhook\'s configuration with webhook_id, or a webhook\'s delivery attempts and outcomes. [Requires: api.webhooks.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'view' => ['type' => 'string', 'enum' => ['list', 'deliveries'], 'description' => 'What to retrieve (default: list)'],
-                            'webhook_id' => ['type' => 'string', 'description' => 'Webhook ID: narrows the list view to that one webhook; required for the deliveries view'],
-                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number (default: 1, deliveries view only)'],
-                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Items per page (default: 50, deliveries view only)'],
+                            'view' => ['type' => 'string', 'enum' => ['list', 'deliveries'], 'description' => 'Default: list'],
+                            'webhook_id' => ['type' => 'string', 'description' => 'Narrows the list view to that one webhook; required for the deliveries view'],
+                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Default 1'],
+                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Default 50'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -58,11 +58,11 @@ final class WebhooksTools
                 'descriptor' => [
                     'name' => 'manage_webhook',
                     'title' => 'Manage Webhook',
-                    'description' => 'Create, update, delete, or test a webhook. Test sends a test payload to a webhook endpoint to verify it is receiving and processing correctly. [Requires: api.webhooks.write]',
+                    'description' => 'Create, update, delete, or test a webhook. "test" sends a test payload to the endpoint to verify it receives and processes it. [Requires: api.webhooks.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete', 'test'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'update', 'delete', 'test']],
                             'id' => ['type' => 'string', 'description' => 'Webhook ID (required for update, delete, and test)'],
                             'url' => ['type' => 'string', 'description' => 'Webhook endpoint URL (required for create)'],
                             'events' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Events to subscribe to: page.created/updated/deleted/moved/translated, pages.reordered, media.uploaded/deleted, user.created/updated/deleted, config.updated, gpm.installed/removed, grav.upgraded'],

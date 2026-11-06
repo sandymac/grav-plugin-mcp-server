@@ -309,7 +309,7 @@ class ToolRegistry
                     'descriptor' => [
                         'name' => 'whoami',
                         'title' => 'Who Am I',
-                        'description' => 'The account behind the current key or OAuth token: username, profile, and its resolved permissions — the grants that determine which tools are visible and callable (each tool description states its requirement). Also reports tool_access: the key\'s scope list and the hidden tools split by what hides them — hidden_by_key_scope (the key was granted without that scope, even if the account holds the permission; reconnect the connector to re-consent) and hidden_by_account_permission (grant the permission to the account). [Requires: api.access]',
+                        'description' => 'The account behind the current key or OAuth token: username, profile, resolved permissions (which decide the visible tools), and tool_access (the key\'s scopes plus hidden tools). hidden_by_key_scope: the key was granted without that scope, even if the account holds the permission — reconnect the connector to re-consent. hidden_by_account_permission: grant the permission to the account. [Requires: api.access]',
                         'inputSchema' => [
                             'type' => 'object',
                             'properties' => new \stdClass(),

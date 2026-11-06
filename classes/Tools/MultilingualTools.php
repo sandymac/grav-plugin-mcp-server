@@ -80,7 +80,7 @@ final class MultilingualTools
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['create', 'adopt', 'sync'], 'description' => 'Action to perform'],
+                            'action' => ['type' => 'string', 'enum' => ['create', 'adopt', 'sync']],
                             'route' => ['type' => 'string', 'description' => 'Page route'],
                             'language' => ['type' => 'string', 'description' => 'Target language code (e.g. "fr", "de", "es")'],
                             'source_language' => ['type' => 'string', 'description' => 'Language to copy from. sync: required. create: the translation whose template, title, content and header the new one starts from (default: the site default language)'],

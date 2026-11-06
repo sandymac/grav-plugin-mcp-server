@@ -65,9 +65,9 @@ final class GpmTools
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'query' => ['type' => 'string', 'description' => 'Search query'],
-                            'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Page number'],
-                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Results per page'],
+                            'query' => ['type' => 'string'],
+                            'page' => ['type' => 'integer', 'minimum' => 1],
+                            'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],
                         ],
                         'required' => ['query'],
                         'additionalProperties' => false,
@@ -87,14 +87,14 @@ final class GpmTools
                 'descriptor' => [
                     'name' => 'manage_packages',
                     'title' => 'Manage Packages',
-                    'description' => 'Install, remove, or update packages. "update" updates one named package; "update_all" updates every installed plugin and theme; "upgrade_grav" self-upgrades the Grav core itself. [Requires: api.gpm.write]',
+                    'description' => 'Install, update, or remove a GPM package, or upgrade Grav core. [Requires: api.gpm.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
-                            'action' => ['type' => 'string', 'enum' => ['install', 'remove', 'update', 'update_all', 'upgrade_grav'], 'description' => 'What to do. "install" adds a package from the GPM repository (configure it afterwards via update_config with scope "plugins/{slug}" or "themes/{slug}"); "remove" uninstalls one, deleting its files; "update" updates the single named package (auto-detected from the slug) plus its required dependencies; "update_all" bulk-updates every updatable plugin and theme, reporting failures per package rather than throwing; "upgrade_grav" upgrades the Grav core itself and refuses symlink installs (check `is_symlink` via get_packages with view "updates" first, and expect to need super_admin).'],
-                            'package' => ['type' => 'string', 'description' => 'Package slug. Required for install, remove, and update; meaningless for update_all and upgrade_grav, which take no target.'],
-                            'type' => ['type' => 'string', 'enum' => ['plugin', 'theme'], 'description' => 'Package type. Required for install; meaningless for every other action.'],
-                            'license' => ['type' => 'string', 'description' => 'License key (for premium packages). Install only.'],
+                            'action' => ['type' => 'string', 'enum' => ['install', 'remove', 'update', 'update_all', 'upgrade_grav'], 'description' => '"install": from the GPM repository; configure it afterwards with update_config scope "plugins/{slug}" or "themes/{slug}". "remove": uninstalls, deleting its files. "update": one package (type auto-detected from the slug) plus its required dependencies. "update_all": every updatable plugin and theme; failures are reported per package. "upgrade_grav": Grav core; refuses a symlink install (check is_symlink in get_packages view "updates" first) and expect to need super-admin.'],
+                            'package' => ['type' => 'string', 'description' => 'Slug; required for install, remove and update; ignored by update_all and upgrade_grav, which take no target.'],
+                            'type' => ['type' => 'string', 'enum' => ['plugin', 'theme'], 'description' => 'Required for install; ignored otherwise.'],
+                            'license' => ['type' => 'string', 'description' => 'License key for premium packages (install only)'],
                         ],
                         'required' => ['action'],
                         'additionalProperties' => false,
