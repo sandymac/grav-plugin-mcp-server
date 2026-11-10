@@ -67,7 +67,7 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'upload_media',
                     'title' => 'Upload Media',
-                    'description' => 'Upload media files. Give "route" to attach the files to that page; leave "route" out to upload into the site media library, where "path" names an optional subfolder. Each file needs a filename and base64-encoded content. Supports images, videos, documents, and other file types. On a page with page-level rules, page media also needs update on that page. [Requires: api.media.write]',
+                    'description' => 'Upload media files. Give "route" to attach the files to that page; leave "route" out to upload into the site media library, where "path" names an optional subfolder. Each file needs a filename and base64-encoded content. Supports images, videos, documents, and other file types. On a page with page-level rules, page media also needs the media rule on that page (or its update rule where the block names no media). [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -116,7 +116,7 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'delete_media',
                     'title' => 'Delete Media',
-                    'description' => 'Delete a media file. Give "route" plus "filename" to delete a page\'s media; leave "route" out and give "path" to delete from the site media library. On a page with page-level rules, page media also needs update on that page. [Requires: api.media.write]',
+                    'description' => 'Delete a media file. Give "route" plus "filename" to delete a page\'s media; leave "route" out and give "path" to delete from the site media library. On a page with page-level rules, page media also needs the media rule on that page (or its update rule where the block names no media). [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -268,7 +268,7 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'update_media_meta',
                     'title' => 'Update Media Metadata',
-                    'description' => 'Set or clear media metadata. Target exactly one: route+filename (one page file), route+filenames (batch, files of that page), path (one site media file), or paths (batch, site media files). Batches are "set" only; "clear" resets the managed keys of one file. "set" merges fields into the existing metadata: "" or an empty tag list removes that key; keys outside the site-configured managed list (default alt, title, caption, description, tags) are ignored; tags is a list or comma string. On a page with page-level rules, page media also needs update on that page. [Requires: api.media.write]',
+                    'description' => 'Set or clear media metadata. Target exactly one: route+filename (one page file), route+filenames (batch, files of that page), path (one site media file), or paths (batch, site media files). Batches are "set" only; "clear" resets the managed keys of one file. "set" merges fields into the existing metadata: "" or an empty tag list removes that key; keys outside the site-configured managed list (default alt, title, caption, description, tags) are ignored; tags is a list or comma string. On a page with page-level rules, page media also needs the media rule on that page (or its update rule where the block names no media). [Requires: api.media.write]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [

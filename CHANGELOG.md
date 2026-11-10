@@ -1,3 +1,10 @@
+# v1.11.2
+## 2026-11-10
+
+1. [](#improved)
+    * `upload_media`, `delete_media` and `update_media_meta` say which page rule governs page media. From api 1.1.15 a page's group permissions can grant media management on its own with the `media` rule (letter `m`), so a role can upload and caption a page's images without being able to edit the page; where a block says nothing about media, its `update` rule still decides ([getgrav/grav-plugin-api#77](https://github.com/getgrav/grav-plugin-api/issues/77)).
+    * Triaged against api plugin 1.1.15 to 1.1.17 and Grav 2.2.27 and 2.2.28. The rest passes straight through: page media uploads and deletes refuse the page's own Markdown, `frontmatter.yaml` and `media.json` (1.1.15); Page Statistics skip link-preview, AI, monitoring and headless fetchers (1.1.16); a solved login captcha can't be replayed by simultaneous logins, and simultaneous wrong 2FA codes are all counted against the limit (1.1.17, the latter with Login 3.13.1). No new routes. The api floor stays at 1.1.12.
+
 # v1.11.1
 ## 2026-11-06
 
