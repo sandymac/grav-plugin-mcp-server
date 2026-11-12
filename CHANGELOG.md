@@ -1,3 +1,13 @@
+# v1.11.3
+## 2026-11-12
+
+1. [](#bugfix)
+    * [security] OAuth client registration refuses a redirect URI that PHP and web browsers could read as pointing at different hosts, so a registered client could have received authorization codes at a host outside `oauth.allowed_redirect_hosts`. A redirect URI may no longer contain a backslash, whitespace or control characters, a username or password, or a fragment. The redirect URI is checked again against the allowlist at every sign-in, so a client registered before this release, or before a host was removed from the list, gets an error page instead of a redirect; remove such a connector and add it again.
+    * [security] A refused client registration no longer writes the request it was sent to `grav.log`. The log line gives the reason and the refused redirect URI (escaped and cut to 200 characters), and only the first ten refusals from an address in 15 minutes are logged, so an anonymous caller can no longer fill the log, which `get_logs` hands to AI clients, with text of its choosing. Refusals don't count against the address's registrations, so a connector refused while its allowlist is being fixed can register as soon as it is. The registration throttle logs once when an address reaches it, not on every refused request after that.
+    * `get_page`, `update_page` and `delete_page` reach a page whose folder name matches one of a page's API sub-resources, such as `/blog/media` or `/docs/languages`, instead of that sub-resource of its parent page (api plugin 1.1.18, [getgrav/grav-plugin-admin2#213](https://github.com/getgrav/grav-plugin-admin2/issues/213)). On an older api plugin they behave as before.
+1. [](#improved)
+    * Triaged against api plugin 1.1.18 and Grav 2.2.29. The rest passes straight through: page records carry `unpublished_by`, the route of the parent page that unpublishes them through Grav 2.2.29's `cascade_unpublish` (null otherwise), while `published` stays the page's own setting; a backup job's on/off entry in the `scheduler` config is now its backup profile's Scheduled Backup switch, so `update_config` on the `scheduler` scope sets it on the profile, and old `scheduler.status` entries for backup jobs are no longer shown and are removed when either scope is saved ([getgrav/grav#4397](https://github.com/getgrav/grav/issues/4397)); page group permissions in Admin2 have a Media column. No new routes. The api floor stays at 1.1.12.
+
 # v1.11.2
 ## 2026-11-10
 

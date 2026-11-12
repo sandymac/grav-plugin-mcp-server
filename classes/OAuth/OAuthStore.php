@@ -184,7 +184,7 @@ class OAuthStore
         return is_array($keyIds) ? $keyIds : [];
     }
 
-    /** Sliding-window counter for a throttle key ('ip:...', 'user:...', 'reg:...'), 0 once expired. */
+    /** Sliding-window counter for a throttle key ('ip:...', 'user:...', 'reg:...', 'regreject:...'), 0 once expired. */
     public function failureCount(string $key): int
     {
         $entry = $this->data['failures'][$key] ?? null;
