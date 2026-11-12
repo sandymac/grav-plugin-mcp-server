@@ -37,6 +37,7 @@ class OAuthServer
     private const int MAX_FAILURES = 5;   // consent-login failures per IP or username...
     private const int LOCKOUT_TTL = 900;  // ...before that key is locked out this many seconds
     public const int MAX_REGISTRATIONS = 10; // DCR registrations per IP per LOCKOUT_TTL window (public for tests)
+    public const int MAX_LOGGED_REJECTIONS = 10; // refused registrations logged per IP per LOCKOUT_TTL window (public for tests)
 
     /**
      * The Model Context Protocol wave mark, from the official logo
@@ -280,38 +281,40 @@ class OAuthServer
 
         // Registration is public by spec (RFC 7591), so bound it: legitimate
         // connectors register once per setup, only a flood ever sees the 429.
-        // Counted on success only — rejected floods then cost no store writes,
-        // and the age prune plus MAX_PENDING still bound the file.
+        // Counted on success only, so a connector refused while its operator
+        // fixes the allowlist is never locked out; rejections are bounded by
+        // their own counter in rejectRegistration(). The age prune plus
+        // MAX_PENDING still bound the file. The 429 itself logs nothing (the
+        // crossing below did), or a flood of them would flood the log instead.
         $throttleKey = 'reg:' . $this->clientIp();
         if ($this->store->failureCount($throttleKey) >= self::MAX_REGISTRATIONS) {
-            $this->log('warning', sprintf('registration throttled: %d registrations from %s within %d minutes', self::MAX_REGISTRATIONS, $this->clientIp(), intdiv(self::LOCKOUT_TTL, 60)));
             $this->json(429, ['error' => 'too_many_requests', 'error_description' => 'Too many client registrations from this address. Try again later.']);
         }
 
-        $raw = (string) file_get_contents('php://input');
-        $meta = json_decode($raw, true);
+        $meta = json_decode((string) file_get_contents('php://input'), true);
         if (!is_array($meta)) {
-            $this->rejectRegistration('invalid_client_metadata', 'request body must be a JSON object', $raw);
+            $this->rejectRegistration('invalid_client_metadata', 'request body must be a JSON object');
         }
 
         $uris = $meta['redirect_uris'] ?? [];
         if (!is_array($uris) || $uris === []) {
-            $this->rejectRegistration('invalid_redirect_uri', 'redirect_uris is required', $raw);
+            $this->rejectRegistration('invalid_redirect_uri', 'redirect_uris is required');
         }
         // The store is decoded on every OAuth request, so unbounded URIs let an
         // unauthenticated caller inflate it.
         if (count($uris) > 10) {
-            $this->rejectRegistration('invalid_redirect_uri', 'at most 10 redirect_uris are accepted', $raw);
+            $this->rejectRegistration('invalid_redirect_uri', 'at most 10 redirect_uris are accepted');
         }
         foreach ($uris as $uri) {
             if (is_string($uri) && strlen($uri) > 512) {
-                $this->rejectRegistration('invalid_redirect_uri', 'a redirect_uri may be at most 512 bytes', $raw);
+                $this->rejectRegistration('invalid_redirect_uri', 'a redirect_uri may be at most 512 bytes');
             }
             if (!is_string($uri) || !$this->redirectUriAllowed($uri)) {
+                // JSON-encoded so control characters stay escaped in the log.
                 $this->rejectRegistration('invalid_redirect_uri', sprintf(
-                    'redirect_uri %s is not allowed: must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts',
+                    'redirect_uri %s is not allowed: must be https (or http on localhost) with a host listed in plugins.mcp-server.oauth.allowed_redirect_hosts, and no userinfo, fragment, backslash, whitespace or control characters',
                     mb_substr((string) json_encode($uri, JSON_UNESCAPED_SLASHES), 0, 200)
-                ), $raw);
+                ));
             }
         }
 
@@ -323,6 +326,11 @@ class OAuthServer
         ];
         $this->store->putClient($client);
         $this->store->recordFailure($throttleKey, self::LOCKOUT_TTL);
+        // === not >=: the gate above stops counting at the cap, so each window
+        // crosses it exactly once.
+        if ($this->store->failureCount($throttleKey) === self::MAX_REGISTRATIONS) {
+            $this->log('warning', sprintf('registration throttled: %d registrations from %s within %d minutes; further registrations from it are refused for %d minutes', self::MAX_REGISTRATIONS, $this->clientIp(), intdiv(self::LOCKOUT_TTL, 60), intdiv(self::LOCKOUT_TTL, 60)));
+        }
 
         $this->json(201, $client + [
             'token_endpoint_auth_method' => 'none',
@@ -332,25 +340,61 @@ class OAuthServer
     }
 
     /**
-     * Refuse a registration and leave the request in the log. Hosted connectors
+     * Refuse a registration and say why in the log. Hosted connectors
      * (claude.ai, Gemini) show the user only a generic "rejected" message, so
      * the site log is the one place the offending redirect_uri can be seen.
-     * The endpoint is public, so everything echoed is bounded first.
+     *
+     * The endpoint is public and grav.log is read back by get_logs, so the log
+     * must not be a free channel for anonymous text: the line carries only the
+     * reason (which names a refused redirect_uri, bounded and JSON-encoded),
+     * never the request body, and only the first MAX_LOGGED_REJECTIONS per
+     * address per window are written. That costs at most that many store
+     * writes per address per window; past it the 400 still goes out, with no
+     * write and no line. Logging is what is capped, not registering, so a
+     * connector refused while its operator fixes the allowlist can register
+     * the moment the fix lands.
      */
-    private function rejectRegistration(string $error, string $description, string $body): never
+    private function rejectRegistration(string $error, string $description): never
     {
-        $this->log('warning', sprintf('registration rejected from %s: %s; request: %s',
-            $this->clientIp(), $description, (string) preg_replace('/\s+/', ' ', substr($body, 0, 2000))));
+        $key = 'regreject:' . $this->clientIp();
+        $count = $this->store->failureCount($key);
+        if ($count < self::MAX_LOGGED_REJECTIONS) {
+            $this->store->recordFailure($key, self::LOCKOUT_TTL);
+            $this->log('warning', sprintf('registration rejected from %s: %s%s', $this->clientIp(), $description,
+                $count + 1 === self::MAX_LOGGED_REJECTIONS
+                    ? sprintf('; further rejections from this address go unlogged for %d minutes', intdiv(self::LOCKOUT_TTL, 60))
+                    : ''));
+        }
         $this->json(400, ['error' => $error, 'error_description' => $description]);
     }
 
+    /**
+     * The one redirect-URI rule, checked at registration and again at every
+     * authorization, so a client registered before a tightening (or under a
+     * wider allowlist) stops working instead of keeping its old URIs.
+     */
     private function redirectUriAllowed(string $uri): bool
     {
-        $host = strtolower((string) (parse_url($uri, PHP_URL_HOST) ?? ''));
-        $scheme = strtolower((string) (parse_url($uri, PHP_URL_SCHEME) ?? ''));
+        // The host is checked with parse_url(), but the browser that follows the
+        // redirect parses with WHATWG URL rules, and the two disagree on
+        // backslashes, whitespace, control characters and userinfo: PHP can read
+        // an allowlisted host where the browser goes somewhere else. Accept only
+        // URIs in the shape both read alike. A fragment is refused too: RFC 6749
+        // §3.1.2 forbids one, and ours would be appended after it.
+        // preg_match() returns false on invalid UTF-8, refused like a match.
+        if (preg_match('/[\s\p{C}\x5C]/u', $uri) !== 0 || str_contains($uri, '#')) {
+            return false;
+        }
+        $parts = parse_url($uri);
+        if (!is_array($parts) || isset($parts['user']) || isset($parts['pass'])) {
+            return false;
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
         $isLocal = in_array($host, ['localhost', '127.0.0.1', '[::1]'], true);
 
-        if ($scheme !== 'https' && !($scheme === 'http' && $isLocal)) {
+        if ($host === '' || ($scheme !== 'https' && !($scheme === 'http' && $isLocal))) {
             return false;
         }
 
@@ -378,6 +422,9 @@ class OAuthServer
         if (!in_array($redirect, $client['redirect_uris'], true)) {
             // Never redirect to an unregistered URI (open-redirect guard).
             $this->html(400, '<p><code>redirect_uri</code> is not registered for this client.</p>');
+        }
+        if (!$this->redirectUriAllowed($redirect)) {
+            $this->html(400, '<p>This client\'s <code>redirect_uri</code> is no longer allowed by this site. Remove the connector and add it again.</p>');
         }
 
         // From here on, errors go back to the client per RFC 6749.
@@ -415,6 +462,9 @@ class OAuthServer
         $client = $this->store->getClient($params['client_id']);
         if ($client === null || !in_array($params['redirect_uri'], $client['redirect_uris'], true)) {
             $this->html(400, '<p>Unknown client. Restart the connection from your MCP client.</p>');
+        }
+        if (!$this->redirectUriAllowed($params['redirect_uri'])) {
+            $this->html(400, '<p>This client\'s <code>redirect_uri</code> is no longer allowed by this site. Remove the connector and add it again.</p>');
         }
 
         if (isset($_POST['deny'])) {

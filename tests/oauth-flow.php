@@ -7,8 +7,10 @@ declare(strict_types=1);
  * consent → token → refresh → revoke against real Grav + api-plugin classes,
  * asserting the security behaviors that matter:
  *
- *   - redirect-host allowlist at registration
- *   - per-IP throttle on dynamic client registration
+ *   - redirect-host allowlist at registration, refusing URIs PHP and browsers
+ *     parse differently, and re-checked at authorize
+ *   - per-IP throttle on dynamic client registration; rejections logged
+ *     without the request body, up to a per-IP cap
  *   - open-redirect guard at authorize
  *   - consent-form HMAC (tamper/expiry) integrity
  *   - brute-force lockout by IP and by username
@@ -404,6 +406,23 @@ $client = json_decode($reg['body'], true);
 check($reg['status'] === 201 && is_string($client['client_id'] ?? null), 'registration succeeds for an allowlisted https host');
 $clientId = (string) $client['client_id'];
 
+// 2a. URIs PHP and browsers parse differently are refused outright: parse_url()
+// reads the host after a backslash-userinfo as the host, a browser reads the
+// part before it. Own IP, so these don't use up 10.0.0.1's logged rejections.
+$bs = chr(92); // one backslash, spelled so no layer of quoting can eat it
+$smuggled = [
+    'backslash userinfo before an allowlisted host' => 'https://evil.example' . $bs . '@client.example/cb',
+    'backslash userinfo before localhost' => 'http://evil.example' . $bs . '@localhost/cb',
+    'plain userinfo' => 'https://user@client.example/cb',
+    'a fragment' => 'https://client.example/cb#frag',
+    'whitespace' => 'https://client.example/c b',
+    'a control character' => "https://client.example/cb\x01",
+];
+foreach ($smuggled as $what => $uri) {
+    $refused = oauth('POST', '/mcp/oauth/register', [], [], (string) json_encode(['redirect_uris' => [$uri]]), '5.5.5.5');
+    check($refused['status'] === 400 && str_contains($refused['body'], 'invalid_redirect_uri'), "registration refuses a redirect_uri with {$what}");
+}
+
 // 2b. Registration is bounded per IP: the request past MAX_REGISTRATIONS gets a 429.
 $floodBody = '{"redirect_uris":["' . REDIRECT_URI . '"],"client_name":"Flood"}';
 $last = [];
@@ -415,10 +434,49 @@ $over = oauth('POST', '/mcp/oauth/register', [], [], $floodBody, '7.7.7.7');
 check($over['status'] === 429 && str_contains($over['body'], 'too_many_requests'), 'a registration past the per-IP limit is refused with 429');
 $otherIp = oauth('POST', '/mcp/oauth/register', [], [], $floodBody, '6.6.6.6');
 check($otherIp['status'] === 201, 'the registration throttle is per IP, not global');
+oauth('POST', '/mcp/oauth/register', [], [], $floodBody, '7.7.7.7');
+$throttleLines = substr_count((string) file_get_contents(FLOW_DATA_DIR . '/grav.log'), 'registration throttled: ' . OAuthServer::MAX_REGISTRATIONS . ' registrations from 7.7.7.7');
+check($throttleLines === 1, 'the throttle logs its crossing once, not every 429 after it');
+
+// 2c. Rejections are logged without the request body, and only up to
+// MAX_LOGGED_REJECTIONS per IP per window — but they never lock the IP out of
+// a registration that is valid.
+oauth('POST', '/mcp/oauth/register', [], [], 'not json INJECTED-TEXT', '4.4.4.4');
+for ($i = 1; $i < OAuthServer::MAX_LOGGED_REJECTIONS + 3; $i++) {
+    $rejected = oauth('POST', '/mcp/oauth/register', [], [], '{"redirect_uris":["https://evil.example/cb"],"client_name":"INJECTED-TEXT"}', '4.4.4.4');
+}
+check($rejected['status'] === 400, 'a rejection past the logging cap still gets its 400');
+$rejectLog = (string) file_get_contents(FLOW_DATA_DIR . '/grav.log');
+check(!str_contains($rejectLog, 'INJECTED-TEXT'), 'a rejected registration logs the reason, never the request body');
+check(substr_count($rejectLog, 'registration rejected from 4.4.4.4') === OAuthServer::MAX_LOGGED_REJECTIONS, 'rejections are logged up to the per-IP cap and no further');
+check(str_contains($rejectLog, 'further rejections from this address go unlogged'), 'the last logged rejection says the rest go unlogged');
+$afterRejections = oauth('POST', '/mcp/oauth/register', [], [], $floodBody, '4.4.4.4');
+check($afterRejections['status'] === 201, 'rejections do not lock an address out of a valid registration');
 
 // 3. Authorize: open-redirect guard and PKCE requirement.
 $badRedirect = oauth('GET', '/mcp/oauth/authorize', ['client_id' => $clientId, 'redirect_uri' => 'https://client.example/other'] + $authParams($clientId));
 check($badRedirect['status'] === 400 && redirectParams($badRedirect) === null, 'unregistered redirect_uri gets an error page, never a redirect');
+
+// 3a. The redirect-URI rule is re-checked at authorize, so clients stored before
+// it tightened — or under a wider allowlist — stop working: an error page at
+// GET and at a validly signed POST, never a redirect.
+$legacyStore = new \Grav\Plugin\McpServer\OAuth\OAuthStore(FLOW_DATA_DIR . '/mcp-server/oauth.json');
+$legacy = [
+    'a smuggled host' => 'https://evil.example' . $bs . '@client.example/cb',
+    'a host since dropped from the allowlist' => 'https://dropped.example/cb',
+];
+foreach ($legacy as $what => $uri) {
+    $legacyId = bin2hex(random_bytes(16));
+    $legacyStore->putClient(['client_id' => $legacyId, 'client_name' => 'Legacy', 'redirect_uris' => [$uri], 'created' => time()]);
+    $legacyParams = array_merge($authParams($legacyId), ['redirect_uri' => $uri]);
+    $legacyGet = oauth('GET', '/mcp/oauth/authorize', $legacyParams);
+    check($legacyGet['status'] === 400 && redirectParams($legacyGet) === null && str_contains($legacyGet['body'], 'no longer allowed'), "authorize refuses a stored client with {$what}, without redirecting");
+    // The form the GET refused to render, signed the way OAuthServer::sign() does.
+    $ts = time() + 600;
+    $legacySig = hash_hmac('sha256', $ts . "\n" . json_encode($legacyParams), 'oauth-flow-test-salt');
+    $legacyPost = oauth('POST', '/mcp/oauth/authorize', [], $legacyParams + ['ts' => (string) $ts, 'sig' => $legacySig, 'username' => 'alice', 'password' => 'pw-alice']);
+    check($legacyPost['status'] === 400 && redirectParams($legacyPost) === null && str_contains($legacyPost['body'], 'no longer allowed'), "a signed approval for a stored client with {$what} is refused, without redirecting");
+}
 
 $noPkce = oauth('GET', '/mcp/oauth/authorize', array_merge($authParams($clientId), ['code_challenge' => '', 'code_challenge_method' => '']));
 $noPkceRedirect = redirectParams($noPkce);
