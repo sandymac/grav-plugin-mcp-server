@@ -50,10 +50,16 @@ namespace {
 
 /**
  * Consciously-accepted extras: tool name => param names never flagged.
- * Empty on purpose — an entry here is a documented decision to send something
- * the controller ignores, not a place to silence a fresh failure.
+ * An entry here is a documented decision to send something the controller
+ * ignores, not a place to silence a fresh failure.
  */
-$allow = [];
+$allow = [
+    // `resource=page` is read by ApiRouter::explicitPageRoute() (api 1.1.18),
+    // not the controller: it routes the whole path to the page itself.
+    'get_page' => ['resource'],
+    'update_page' => ['resource'],
+    'delete_page' => ['resource'],
+];
 
 /**
  * Permission-contract exceptions: tool name => the declared permission we stand

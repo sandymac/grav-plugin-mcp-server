@@ -88,6 +88,11 @@ final class PagesTools
                 ],
                 'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
                     $api->request('GET', '/pages/' . ApiBridge::path($args), [
+                        // api 1.1.18+ router: the whole path is the page, so a page
+                        // named like a sub-resource (/blog/media, /ref/languages)
+                        // isn't routed to its parent's. Older api ignores it. Same
+                        // on update_page and delete_page.
+                        'resource' => 'page',
                         'render' => $args['render'] ?? null,
                         'children' => $args['children'] ?? null,
                         'children_depth' => $args['children_depth'] ?? null,
@@ -191,7 +196,7 @@ final class PagesTools
                         'PATCH',
                         '/pages/' . ApiBridge::path($args),
                         // update() reads lang from the query string, not the body.
-                        ['lang' => $args['lang'] ?? null],
+                        ['resource' => 'page', 'lang' => $args['lang'] ?? null],
                         ApiBridge::pick($args, ['title', 'content', 'template', 'header', 'published', 'visible']),
                         isset($args['etag']) ? ['If-Match' => (string) $args['etag']] : []
                     ),
@@ -217,7 +222,7 @@ final class PagesTools
                     'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true],
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
-                    $resp = $api->request('DELETE', '/pages/' . ApiBridge::path($args), ['lang' => $args['lang'] ?? null]);
+                    $resp = $api->request('DELETE', '/pages/' . ApiBridge::path($args), ['resource' => 'page', 'lang' => $args['lang'] ?? null]);
                     $message = sprintf('Page "%s" deleted.', $args['route'] ?? '');
 
                     // api 1.1.3+: 200 with {undo} instead of 204 when a plugin attached one.
