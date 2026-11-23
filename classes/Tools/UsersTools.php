@@ -84,7 +84,7 @@ final class UsersTools
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
                     if (($args['username'] ?? '') === '') {
-                        return ApiBridge::toolJson(['error' => 'username is required for every manage_users action']);
+                        return ApiBridge::toolError('username is required for every manage_users action');
                     }
 
                     return match ($args['action'] ?? null) {
@@ -104,7 +104,7 @@ final class UsersTools
                         ), transform: self::withMetaMessage(...)),
                         'delete' => ApiBridge::fromResponse(
                             $api->request('DELETE', '/users/' . self::username($args)),
-                            successMessage: sprintf('User "%s" deleted.', $args['username'] ?? '')
+                            successMessage: sprintf('User "%s" deleted.', $args['username'])
                         ),
                         'cancel_email_change' => ApiBridge::fromResponse(
                             $api->request('DELETE', '/users/' . self::username($args) . '/email-change')
@@ -162,7 +162,7 @@ final class UsersTools
                     if ($action === 'revoke') {
                         if (!isset($args['key_id'])) {
                             // Plain (non-isError) result, like manage_webhook's arg validation.
-                            return ApiBridge::toolJson(['error' => 'key_id is required for revoke action']);
+                            return ApiBridge::toolError('key_id is required for revoke action');
                         }
 
                         $keyId = (string) $args['key_id'];
@@ -237,7 +237,7 @@ final class UsersTools
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
                     if (($args['name'] ?? '') === '') {
-                        return ApiBridge::toolJson(['error' => 'name is required for the create, update, and delete actions']);
+                        return ApiBridge::toolError('name is required for the create, update, and delete actions');
                     }
 
                     $name = rawurlencode((string) $args['name']);
@@ -245,7 +245,7 @@ final class UsersTools
                     if (($args['action'] ?? null) === 'update') {
                         $body = self::groupFields($args);
                         if ($body === []) {
-                            return ApiBridge::toolJson(['error' => 'update needs at least one of readable_name, description, icon, enabled, access']);
+                            return ApiBridge::toolError('update needs at least one of readable_name, description, icon, enabled, access');
                         }
 
                         return ApiBridge::fromResponse($api->request(
@@ -266,7 +266,7 @@ final class UsersTools
                         )),
                         'delete' => ApiBridge::fromResponse(
                             $api->request('DELETE', '/groups/' . $name),
-                            successMessage: sprintf('Group "%s" deleted.', $args['name'] ?? '')
+                            successMessage: sprintf('Group "%s" deleted.', $args['name'])
                         ),
                         default => ApiBridge::toolError('Invalid action. Must be one of: create, update, delete'),
                     };
@@ -300,7 +300,7 @@ final class UsersTools
                     return match ($args['action'] ?? null) {
                         'list' => ApiBridge::fromResponse($api->request('GET', '/invitations')),
                         'create' => (($args['email'] ?? '') === '')
-                            ? ApiBridge::toolJson(['error' => 'email is required for the create action'])
+                            ? ApiBridge::toolError('email is required for the create action')
                             : ApiBridge::fromResponse($api->request(
                                 'POST',
                                 '/invitations',
@@ -308,13 +308,13 @@ final class UsersTools
                                 ApiBridge::pick($args, ['email', 'fullname', 'access', 'groups', 'expiration', 'message'])
                             )),
                         'delete' => (($args['token'] ?? '') === '')
-                            ? ApiBridge::toolJson(['error' => 'token is required for the delete action'])
+                            ? ApiBridge::toolError('token is required for the delete action')
                             : ApiBridge::fromResponse(
                                 $api->request('DELETE', '/invitations/' . rawurlencode((string) $args['token'])),
                                 successMessage: 'Invitation deleted.'
                             ),
                         'resend' => (($args['token'] ?? '') === '')
-                            ? ApiBridge::toolJson(['error' => 'token is required for the resend action'])
+                            ? ApiBridge::toolError('token is required for the resend action')
                             : ApiBridge::fromResponse($api->request(
                                 'POST',
                                 '/invitations/' . rawurlencode((string) $args['token']) . '/resend',

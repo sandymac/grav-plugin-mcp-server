@@ -142,7 +142,7 @@ final class SystemTools
                     return match ($args['action'] ?? null) {
                         'create' => ApiBridge::fromResponse($api->request('POST', '/system/backup')),
                         'delete' => $filename === ''
-                            ? ApiBridge::toolJson(['error' => 'filename is required for action "delete".'])
+                            ? ApiBridge::toolError('filename is required for action "delete".')
                             : ApiBridge::fromResponse(
                                 $api->request('DELETE', '/system/backups/' . rawurlencode($filename)),
                                 successMessage: sprintf('Backup "%s" deleted.', $filename)
@@ -224,7 +224,7 @@ final class SystemTools
                     return match ($args['report'] ?? null) {
                         'twig_content_scan' => ApiBridge::fromResponse($api->request('GET', '/reports/twig-content/scan')),
                         'twig_content_page' => $route === ''
-                            ? ApiBridge::toolJson(['error' => 'route is required for report "twig_content_page".'])
+                            ? ApiBridge::toolError('route is required for report "twig_content_page".')
                             : ApiBridge::fromResponse($api->request('GET', '/reports/twig-content/page', ['route' => $route])),
                         'twig_sandbox_policy' => ApiBridge::fromResponse($api->request('GET', '/reports/twig-content/sandbox-policy')),
                         default => ApiBridge::fromResponse($api->request('GET', '/reports')),
@@ -284,15 +284,15 @@ final class SystemTools
 
                     return match ($args['action'] ?? null) {
                         'allow' => $rule === '' || $token === ''
-                            ? ApiBridge::toolJson(['error' => 'rule and token are required for action "allow".'])
+                            ? ApiBridge::toolError('rule and token are required for action "allow".')
                             : (in_array($rule, ['method', 'property'], true) && $class === ''
-                                ? ApiBridge::toolJson(['error' => 'class is required for action "allow" with rule "' . $rule . '".'])
+                                ? ApiBridge::toolError('class is required for action "allow" with rule "' . $rule . '".')
                                 : ApiBridge::fromResponse($api->request('POST', '/reports/twig-content/allowlist', [], array_filter(
                                     ['rule' => $rule, 'token' => $token, 'class' => $class],
                                     static fn(string $v): bool => $v !== ''
                                 )))),
                         'trust_partial' => $template === ''
-                            ? ApiBridge::toolJson(['error' => 'template is required for action "trust_partial".'])
+                            ? ApiBridge::toolError('template is required for action "trust_partial".')
                             : ApiBridge::fromResponse($api->request('POST', '/reports/twig-content/trusted-partial', [], ['template' => $template])),
                         default => ApiBridge::toolError('Invalid action. Must be one of: allow, trust_partial'),
                     };

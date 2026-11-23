@@ -55,7 +55,7 @@ final class MultilingualTools
                     $hasTarget = isset($args['target_lang']) && $args['target_lang'] !== '';
 
                     if ($hasSource !== $hasTarget) {
-                        return ApiBridge::toolJson(['error' => 'Both source_lang and target_lang are required to compare translations.']);
+                        return ApiBridge::toolError('Both source_lang and target_lang are required to compare translations.');
                     }
 
                     return $hasSource
@@ -112,13 +112,13 @@ final class MultilingualTools
                             ['lang' => $args['language'] ?? '']
                         )),
                         'sync' => ($args['source_language'] ?? '') === ''
-                            ? ApiBridge::toolJson(['error' => 'source_language is required for the sync action'])
+                            ? ApiBridge::toolError('source_language is required for the sync action')
                             : ApiBridge::fromResponse($api->request(
                                 'POST',
                                 '/pages/' . ApiBridge::path($args) . '/sync',
                                 [],
                                 // The MCP-facing names are 'source_language'/'language'; the endpoint reads 'source_lang'/'target_lang'.
-                                ['source_lang' => $args['source_language'] ?? '', 'target_lang' => $args['language'] ?? '']
+                                ['source_lang' => $args['source_language'], 'target_lang' => $args['language'] ?? '']
                             )),
                         default => ApiBridge::toolError('Invalid action: must be one of "create", "adopt", "sync".'),
                     };

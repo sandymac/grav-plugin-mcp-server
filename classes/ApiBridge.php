@@ -39,10 +39,21 @@ class ApiBridge
         return array_intersect_key($args, array_flip($keys));
     }
 
-    /** Path-encode one argument, keeping '/' separators (page routes, config scopes). */
+    /**
+     * Path-encode one argument, keeping '/' separators (page routes, config scopes).
+     *
+     * A page `route` of "/" is the home page's public route, which list_pages
+     * reports, but the api resolves pages by their own route (raw_route, e.g.
+     * "/home"), so it maps to the configured home alias.
+     */
     public static function path(array $args, string $key = 'route'): string
     {
-        return str_replace('%2F', '/', rawurlencode(ltrim((string) ($args[$key] ?? ''), '/')));
+        $value = trim((string) ($args[$key] ?? ''), '/');
+        if ($value === '' && $key === 'route' && isset($args[$key]) && class_exists(Grav::class, false)) {
+            $value = trim((string) Grav::instance()['config']->get('system.home.alias', ''), '/');
+        }
+
+        return str_replace('%2F', '/', rawurlencode($value));
     }
 
     /** Installed api plugin version from its blueprint, null if the plugin is absent. */
@@ -76,6 +87,15 @@ class ApiBridge
         $params = [];
         foreach ($query as $name => $value) {
             if ($value === null || $value === '') {
+                continue;
+            }
+            // A list rides as a repeatable param (?filter=a&filter=b reaches the
+            // controller as an array), so keep it a list of strings.
+            if (is_array($value)) {
+                $list = array_values(array_filter(array_map(strval(...), array_filter($value, is_scalar(...))), static fn(string $v) => $v !== ''));
+                if ($list !== []) {
+                    $params[$name] = $list;
+                }
                 continue;
             }
             $params[$name] = is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;

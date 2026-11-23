@@ -45,10 +45,10 @@ final class GpmTools
 
                     return match ($args['view'] ?? 'installed') {
                         'installed' => $type === ''
-                            ? ApiBridge::toolJson(['error' => 'type is required for the installed view'])
+                            ? ApiBridge::toolError('type is required for the installed view')
                             : ApiBridge::fromResponse($api->request('GET', '/gpm/' . $type)),
                         'info' => $type === '' || $slug === ''
-                            ? ApiBridge::toolJson(['error' => 'type and slug are required for the info view'])
+                            ? ApiBridge::toolError('type and slug are required for the info view')
                             : self::info($api, $args),
                         'updates' => ApiBridge::fromResponse($api->request('GET', '/gpm/updates')),
                         default => ApiBridge::toolError('Invalid view. Must be one of: installed, info, updates'),
@@ -106,7 +106,7 @@ final class GpmTools
 
                     return match ($args['action'] ?? null) {
                         'install' => $package === '' || ($args['type'] ?? '') === ''
-                            ? ApiBridge::toolJson(['error' => 'package and type are required for the install action'])
+                            ? ApiBridge::toolError('package and type are required for the install action')
                             : ApiBridge::fromResponse($api->request(
                                 'POST',
                                 '/gpm/install',
@@ -114,7 +114,7 @@ final class GpmTools
                                 ApiBridge::pick($args, ['package', 'type', 'license'])
                             )),
                         'remove' => $package === ''
-                            ? ApiBridge::toolJson(['error' => 'package is required for the remove action'])
+                            ? ApiBridge::toolError('package is required for the remove action')
                             : ApiBridge::fromResponse($api->request(
                                 'POST',
                                 '/gpm/remove',
@@ -122,7 +122,7 @@ final class GpmTools
                                 ApiBridge::pick($args, ['package'])
                             )),
                         'update' => $package === ''
-                            ? ApiBridge::toolJson(['error' => 'package is required for the update action'])
+                            ? ApiBridge::toolError('package is required for the update action')
                             : ApiBridge::fromResponse($api->request(
                                 'POST',
                                 '/gpm/update',

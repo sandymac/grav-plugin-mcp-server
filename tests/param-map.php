@@ -163,6 +163,7 @@ $skippedRoutes = [
     'POST /users/{username}/row-action' => 'SPA plumbing (list UI)',
     'GET /mcp/tools' => 'consumed by PluginTools, not a tool itself',
     'GET /admin-next/boot' => 'SPA plumbing (startup bundle of me, languages, sidebar, widgets, panels)',
+    'GET /admin-next/dashboard' => 'SPA plumbing (batch of the dashboard screen endpoints, each reachable through its tool)',
     // Admin Next preferences and branding: the SPA's own look-and-feel.
     'GET /admin-next/preferences' => 'Admin Next preferences',
     'PATCH /admin-next/preferences/user' => 'Admin Next preferences',

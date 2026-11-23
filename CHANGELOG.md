@@ -1,3 +1,14 @@
+# v1.12.0
+## 2026-11-23
+
+1. [](#new)
+    * `list_media` filters and sorts by the site's managed media metadata fields, on a page's media and in the site media library: `filter` takes up to ten clauses (`field:value` or `field:operator:value`, operators `==`, `!=`, `>`, `>=`, `<`, `<=`, `in`, `contains`, all clauses must match), and `sort`/`order` sort by a metadata key or by `filename`, `size` or `modified`. The api plugin has offered this since [getgrav/grav#4200](https://github.com/getgrav/grav/issues/4200) and [#4210](https://github.com/getgrav/grav/issues/4210); it is more useful from api 1.1.19, whose `pages` field type ties a file to the pages that use it, so `pages:/services` finds them ([getgrav/grav-plugin-api#80](https://github.com/getgrav/grav-plugin-api/issues/80)). In the site media library, `search` can't be combined with `filter` or `sort`.
+1. [](#bugfix)
+    * A page tool given the home page's public route `/`, which `list_pages` reports, reaches the home page instead of failing with "Page not found at route: //media" and the like. A route's trailing slash is dropped too.
+    * A call a tool refuses before reaching the api, such as `list_media` with both `route` and `path` or an action missing a required argument, is now a tool error (`isError: true`). It used to come back as a successful result whose body was `{"error": "..."}`, so a client that checks the error flag took it for success.
+1. [](#improved)
+    * Triaged against api plugin 1.1.19 to 1.1.24 and Grav 2.2.30 to 2.2.33. `GET /admin-next/dashboard` (1.1.19), which answers the Admin2 dashboard's requests in one, is skipped as SPA plumbing; each of its parts is its own endpoint, which the existing tools reach. The rest passes straight through: a partial `update_config` on a plugin or theme no longer drops the other keys of the same section (1.1.20); `get_packages` for a plugin returns `admin_page` when it has an admin page, and `get_system_info` reports the cache driver in use (`cache.active`) and whether it fell back to the file cache (`cache.fallback`) (1.1.21); scheduler jobs say whether they can run on the host (`runnable`, 1.1.19 with Grav 2.2.30); media listings report an image's `@2x`/`@3x` files in `retina`, and site media lists and deletes them with their image (1.1.23); a copied page no longer keeps the original's `routes` (1.1.23); media of an unpublished page is no longer served through its route (Grav 2.2.31). The api floor stays at 1.1.12.
+
 # v1.11.3
 ## 2026-11-12
 
