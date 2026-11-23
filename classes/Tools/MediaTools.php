@@ -28,7 +28,7 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'list_media',
                     'title' => 'List Media',
-                    'description' => 'List media files. Give "route" to list the media attached to that page (filename, type, size, dimensions, thumbnail URLs); leave "route" out to browse the site media library instead, where "path" picks a subfolder and search/type/page/per_page filter the listing. One or the other — passing both is an error. [Requires: api.media.read]',
+                    'description' => 'List media files. Give "route" to list the media attached to that page (filename, type, size, dimensions, thumbnail URLs); leave "route" out to browse the site media library instead, where "path" picks a subfolder and search/type/page/per_page filter the listing. One or the other — passing both is an error. Either listing can be filtered and sorted by the site\'s managed metadata fields (get_media_meta lists their keys and types): "filter" clauses are "field:value" or "field:operator:value" with operator ==, !=, >, >=, <, <=, in (comma-separated values) or contains, and all clauses must match; list fields such as tags or pages (page routes) take only in or contains, and "field:value" on them means contains (e.g. "pages:/services" finds files tied to that page). Clauses on a field that is not configured are ignored. In site media, search cannot be combined with filter or sort. [Requires: api.media.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -38,6 +38,9 @@ final class MediaTools
                             'type' => ['type' => 'string', 'enum' => ['image', 'video', 'audio', 'document']],
                             'page' => ['type' => 'integer', 'minimum' => 1, 'description' => 'Default 1'],
                             'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'description' => 'Default 50'],
+                            'filter' => ['type' => 'array', 'items' => ['type' => 'string'], 'maxItems' => 10, 'description' => 'Metadata filter clauses, e.g. ["rating:>=:3", "tags:hero"]'],
+                            'sort' => ['type' => 'string', 'description' => 'A managed metadata key, or filename, size or modified'],
+                            'order' => ['type' => 'string', 'enum' => ['asc', 'desc'], 'description' => 'Default asc'],
                         ],
                         'additionalProperties' => false,
                     ],
@@ -49,7 +52,11 @@ final class MediaTools
                     }
 
                     if (!empty($args['route'])) {
-                        return ApiBridge::fromResponse($api->request('GET', '/pages/' . ApiBridge::path($args) . '/media'));
+                        return ApiBridge::fromResponse($api->request('GET', '/pages/' . ApiBridge::path($args) . '/media', [
+                            'filter' => $args['filter'] ?? null,
+                            'sort' => $args['sort'] ?? null,
+                            'order' => $args['order'] ?? null,
+                        ]));
                     }
 
                     return ApiBridge::fromResponse($api->request('GET', '/media', [
@@ -58,6 +65,9 @@ final class MediaTools
                         'type' => $args['type'] ?? null,
                         'page' => $args['page'] ?? 1,
                         'per_page' => $args['per_page'] ?? 50,
+                        'filter' => $args['filter'] ?? null,
+                        'sort' => $args['sort'] ?? null,
+                        'order' => $args['order'] ?? null,
                     ]));
                 },
             ],

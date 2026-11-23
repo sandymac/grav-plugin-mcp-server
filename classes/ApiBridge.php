@@ -78,6 +78,15 @@ class ApiBridge
             if ($value === null || $value === '') {
                 continue;
             }
+            // A list rides as a repeatable param (?filter=a&filter=b reaches the
+            // controller as an array), so keep it a list of strings.
+            if (is_array($value)) {
+                $list = array_values(array_filter(array_map(strval(...), array_filter($value, is_scalar(...))), static fn(string $v) => $v !== ''));
+                if ($list !== []) {
+                    $params[$name] = $list;
+                }
+                continue;
+            }
             $params[$name] = is_bool($value) ? ($value ? 'true' : 'false') : (string) $value;
         }
 
