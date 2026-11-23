@@ -258,7 +258,7 @@ final class PagesTools
                 ],
                 'handler' => static fn(ApiBridge $api, array $args): array => match ($args['mode'] ?? null) {
                     'move' => ($args['parent'] ?? '') === ''
-                        ? ApiBridge::toolJson(['error' => 'parent is required for the move mode'])
+                        ? ApiBridge::toolError('parent is required for the move mode')
                         : ApiBridge::fromResponse($api->request(
                             'POST',
                             '/pages/' . ApiBridge::path($args) . '/move',
@@ -266,7 +266,7 @@ final class PagesTools
                             ApiBridge::pick($args, ['parent', 'slug', 'order'])
                         )),
                     'copy' => ($args['destination_route'] ?? '') === ''
-                        ? ApiBridge::toolJson(['error' => 'destination_route is required for the copy mode'])
+                        ? ApiBridge::toolError('destination_route is required for the copy mode')
                         : ApiBridge::fromResponse($api->request(
                             'POST',
                             '/pages/' . ApiBridge::path($args) . '/copy',
@@ -326,7 +326,7 @@ final class PagesTools
                 ],
                 'handler' => static fn(ApiBridge $api, array $args): array => match ($args['action'] ?? null) {
                     'batch' => !isset($args['operation'], $args['routes'])
-                        ? ApiBridge::toolJson(['error' => 'operation and routes are required for the batch action'])
+                        ? ApiBridge::toolError('operation and routes are required for the batch action')
                         : ApiBridge::fromResponse($api->request(
                             'POST',
                             '/pages/batch',
@@ -334,7 +334,7 @@ final class PagesTools
                             ApiBridge::pick($args, ['operation', 'routes'])
                         )),
                     'reorder' => !isset($args['parent_route'], $args['order'])
-                        ? ApiBridge::toolJson(['error' => 'parent_route and order are required for the reorder action'])
+                        ? ApiBridge::toolError('parent_route and order are required for the reorder action')
                         : ApiBridge::fromResponse($api->request(
                             'POST',
                             '/pages/' . ApiBridge::path($args, 'parent_route') . '/reorder',
@@ -342,7 +342,7 @@ final class PagesTools
                             ['order' => $args['order']]
                         )),
                     'reorganize' => !isset($args['operations'])
-                        ? ApiBridge::toolJson(['error' => 'operations is required for the reorganize action'])
+                        ? ApiBridge::toolError('operations is required for the reorganize action')
                         : ApiBridge::fromResponse($api->request(
                             'POST',
                             '/pages/reorganize',

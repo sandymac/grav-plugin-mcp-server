@@ -144,7 +144,7 @@ final class BlueprintsTools
     {
         foreach (['destination', 'scope', 'filename', 'content_base64'] as $field) {
             if (!isset($args[$field]) || $args[$field] === '') {
-                return ApiBridge::toolJson(['error' => $field . ' is required for upload action']);
+                return ApiBridge::toolError($field . ' is required for upload action');
             }
         }
 
@@ -181,7 +181,7 @@ final class BlueprintsTools
     private static function deleteBlueprintFile(ApiBridge $api, array $args): array
     {
         if (!isset($args['path']) || $args['path'] === '') {
-            return ApiBridge::toolJson(['error' => 'path is required for delete action']);
+            return ApiBridge::toolError('path is required for delete action');
         }
 
         $path = (string) $args['path'];

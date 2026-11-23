@@ -114,7 +114,7 @@ final class ConfigTools
                     $keys = $args['keys'] ?? null;
                     $reset = $args['reset'] ?? false;
                     if ((!is_array($keys) || $keys === []) && $reset !== true) {
-                        return ApiBridge::toolJson(['error' => 'Provide keys to revert or reset: true']);
+                        return ApiBridge::toolError('Provide keys to revert or reset: true');
                     }
 
                     $body = [];

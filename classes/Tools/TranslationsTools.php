@@ -42,7 +42,7 @@ final class TranslationsTools
                         'sources' => ApiBridge::fromResponse($api->request('GET', '/i18n/sources', ApiBridge::pick($args, ['lang']))),
                         'coverage' => ApiBridge::fromResponse($api->request('GET', '/i18n/coverage', ApiBridge::pick($args, ['source_lang']))),
                         'overrides' => $lang === ''
-                            ? ApiBridge::toolJson(['error' => 'lang is required for the overrides view'])
+                            ? ApiBridge::toolError('lang is required for the overrides view')
                             : ApiBridge::fromResponse($api->request(
                                 'GET',
                                 '/i18n/overrides/' . rawurlencode($lang),
@@ -88,7 +88,7 @@ final class TranslationsTools
                                 '/i18n/keys/' . rawurlencode($key),
                                 ApiBridge::pick($args, ['source_lang'])
                             ))
-                            : ApiBridge::toolJson(['error' => 'key may only contain letters, digits, underscore, dot and hyphen']);
+                            : ApiBridge::toolError('key may only contain letters, digits, underscore, dot and hyphen');
                     }
 
                     $langs = $args['langs'] ?? null;
@@ -129,10 +129,10 @@ final class TranslationsTools
 
                     return match ($args['action'] ?? null) {
                         'set' => $lang === ''
-                            ? ApiBridge::toolJson(['error' => 'lang is required for the set action'])
+                            ? ApiBridge::toolError('lang is required for the set action')
                             : self::patchOverrides($api, $args, $lang),
                         'replace' => $lang === ''
-                            ? ApiBridge::toolJson(['error' => 'lang is required for the replace action'])
+                            ? ApiBridge::toolError('lang is required for the replace action')
                             : self::replaceOverrides($api, $args, $lang),
                         'import_legacy' => ApiBridge::fromResponse($api->request('POST', '/i18n/import/translation-strings')),
                         default => ApiBridge::toolError('Invalid action. Must be one of: set, replace, import_legacy'),
@@ -173,7 +173,7 @@ final class TranslationsTools
         $body = ApiBridge::pick($args, ['set', 'unset']);
 
         if (($body['set'] ?? []) === [] && ($body['unset'] ?? []) === []) {
-            return ApiBridge::toolJson(['error' => 'Provide a non-empty set or unset for the set action.']);
+            return ApiBridge::toolError('Provide a non-empty set or unset for the set action.');
         }
 
         return ApiBridge::fromResponse($api->request(
@@ -188,7 +188,7 @@ final class TranslationsTools
     {
         // An empty yaml string is a legitimate "clear this scope", so presence is what matters.
         if (!array_key_exists('yaml', $args)) {
-            return ApiBridge::toolJson(['error' => 'yaml is required for the replace action (pass an empty string to clear the scope)']);
+            return ApiBridge::toolError('yaml is required for the replace action (pass an empty string to clear the scope)');
         }
 
         return ApiBridge::fromResponse($api->request(

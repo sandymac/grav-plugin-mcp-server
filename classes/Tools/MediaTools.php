@@ -28,7 +28,7 @@ final class MediaTools
                 'descriptor' => [
                     'name' => 'list_media',
                     'title' => 'List Media',
-                    'description' => 'List media files. Give "route" to list the media attached to that page (filename, type, size, dimensions, thumbnail URLs); leave "route" out to browse the site media library instead, where "path" picks a subfolder and search/type/page/per_page filter the listing. One or the other — passing both is an error. Either listing can be filtered and sorted by the site\'s managed metadata fields (get_media_meta lists their keys and types): "filter" clauses are "field:value" or "field:operator:value" with operator ==, !=, >, >=, <, <=, in (comma-separated values) or contains, and all clauses must match; list fields such as tags or pages (page routes) take only in or contains, and "field:value" on them means contains (e.g. "pages:/services" finds files tied to that page). Clauses on a field that is not configured are ignored. In site media, search cannot be combined with filter or sort. [Requires: api.media.read]',
+                    'description' => 'List media files. Give "route" to list the media attached to that page (filename, type, size, dimensions, thumbnail URLs); leave "route" out to browse the site media library instead, where "path" picks a subfolder and search/type/page/per_page filter the listing. One or the other — passing both is an error. Page media comes back as a plain list of every file; site media as {data, pagination}. Either listing can be filtered and sorted by the site\'s managed metadata fields (get_media_meta lists their keys and types): "filter" clauses are "field:value" or "field:operator:value" with operator ==, !=, >, >=, <, <=, in (comma-separated values) or contains, and all clauses must match; list fields such as tags or pages (page routes) take only in or contains, and "field:value" on them means contains (e.g. "pages:/services" finds files tied to that page). Clauses on a field that is not configured are ignored. In site media, search cannot be combined with filter or sort. [Requires: api.media.read]',
                     'inputSchema' => [
                         'type' => 'object',
                         'properties' => [
@@ -48,7 +48,7 @@ final class MediaTools
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
                     if (!empty($args['route']) && !empty($args['path'])) {
-                        return ApiBridge::toolJson(['error' => 'Pass route (page media) or path (site media), not both']);
+                        return ApiBridge::toolError('Pass route (page media) or path (site media), not both');
                     }
 
                     if (!empty($args['route'])) {
@@ -141,7 +141,7 @@ final class MediaTools
                 'handler' => static function (ApiBridge $api, array $args): array {
                     if (!empty($args['route'])) {
                         if (empty($args['filename'])) {
-                            return ApiBridge::toolJson(['error' => 'filename is required when route is given']);
+                            return ApiBridge::toolError('filename is required when route is given');
                         }
 
                         return ApiBridge::fromResponse(
@@ -151,7 +151,7 @@ final class MediaTools
                     }
 
                     if (empty($args['path'])) {
-                        return ApiBridge::toolJson(['error' => 'path is required for site media, or route plus filename for page media']);
+                        return ApiBridge::toolError('path is required for site media, or route plus filename for page media');
                     }
 
                     return ApiBridge::fromResponse(
@@ -196,7 +196,7 @@ final class MediaTools
                         if (empty($args['new_path'])) {
                             // Matches the reference server: this is a normal (non-error)
                             // tool result carrying an `error` field, not an isError result.
-                            return ApiBridge::toolJson(['error' => 'new_path is required for rename action']);
+                            return ApiBridge::toolError('new_path is required for rename action');
                         }
 
                         return ApiBridge::fromResponse($api->request(
@@ -210,7 +210,7 @@ final class MediaTools
 
                     if ($action === 'order') {
                         if (!isset($args['order']) || !\is_array($args['order'])) {
-                            return ApiBridge::toolJson(['error' => 'order (an array of filenames) is required for order action']);
+                            return ApiBridge::toolError('order (an array of filenames) is required for order action');
                         }
 
                         return ApiBridge::fromResponse($api->request(
@@ -251,12 +251,12 @@ final class MediaTools
                 ],
                 'handler' => static function (ApiBridge $api, array $args): array {
                     if (!empty($args['route']) && !empty($args['path'])) {
-                        return ApiBridge::toolJson(['error' => 'Pass route (page media) or path (site media), not both']);
+                        return ApiBridge::toolError('Pass route (page media) or path (site media), not both');
                     }
 
                     if (!empty($args['route'])) {
                         if (empty($args['filename'])) {
-                            return ApiBridge::toolJson(['error' => 'filename is required when route is given']);
+                            return ApiBridge::toolError('filename is required when route is given');
                         }
 
                         return ApiBridge::fromResponse($api->request(
@@ -266,7 +266,7 @@ final class MediaTools
                     }
 
                     if (empty($args['path'])) {
-                        return ApiBridge::toolJson(['error' => 'path is required for site media, or route plus filename for page media']);
+                        return ApiBridge::toolError('path is required for site media, or route plus filename for page media');
                     }
 
                     return ApiBridge::fromResponse($api->request('GET', '/media/meta', ['path' => $args['path']]));
@@ -300,24 +300,24 @@ final class MediaTools
 
                     $targets = array_filter([!empty($args['route']), !empty($args['path']), !empty($args['paths'])]);
                     if (\count($targets) !== 1) {
-                        return ApiBridge::toolJson(['error' => 'Target exactly one of: route (with filename or filenames), path, or paths']);
+                        return ApiBridge::toolError('Target exactly one of: route (with filename or filenames), path, or paths');
                     }
 
                     if (!empty($args['route']) && empty($args['filename']) === empty($args['filenames'])) {
-                        return ApiBridge::toolJson(['error' => 'Give exactly one of filename or filenames with route']);
+                        return ApiBridge::toolError('Give exactly one of filename or filenames with route');
                     }
 
                     if (empty($args['route']) && !empty($args['filenames'])) {
-                        return ApiBridge::toolJson(['error' => 'filenames needs route']);
+                        return ApiBridge::toolError('filenames needs route');
                     }
 
                     if ((!empty($args['paths']) || !empty($args['filenames'])) && $action === 'clear') {
-                        return ApiBridge::toolJson(['error' => 'clear works on one file at a time; use path (or route+filename), not paths or filenames']);
+                        return ApiBridge::toolError('clear works on one file at a time; use path (or route+filename), not paths or filenames');
                     }
 
                     if ($action === 'set') {
                         if (empty($args['fields'])) {
-                            return ApiBridge::toolJson(['error' => 'fields is required for set action']);
+                            return ApiBridge::toolError('fields is required for set action');
                         }
 
                         // The MCP-facing name is "filenames"; the batch endpoint reads "files".

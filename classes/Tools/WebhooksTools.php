@@ -39,7 +39,7 @@ final class WebhooksTools
                     return match ($args['view'] ?? 'list') {
                         'list' => ApiBridge::fromResponse($api->request('GET', $webhookId === '' ? '/webhooks' : '/webhooks/' . rawurlencode($webhookId))),
                         'deliveries' => $webhookId === ''
-                            ? ApiBridge::toolJson(['error' => 'webhook_id is required for deliveries view'])
+                            ? ApiBridge::toolError('webhook_id is required for deliveries view')
                             : ApiBridge::fromResponse($api->request(
                                 'GET',
                                 '/webhooks/' . rawurlencode($webhookId) . '/deliveries',
@@ -84,7 +84,7 @@ final class WebhooksTools
                             ApiBridge::pick($args, ['url', 'events', 'enabled'])
                         )),
                         'update' => $id === ''
-                            ? ApiBridge::toolJson(['error' => 'id is required for update action'])
+                            ? ApiBridge::toolError('id is required for update action')
                             : ApiBridge::fromResponse($api->request(
                                 'PATCH',
                                 '/webhooks/' . rawurlencode($id),
@@ -92,10 +92,10 @@ final class WebhooksTools
                                 ApiBridge::pick($args, ['url', 'events', 'enabled'])
                             )),
                         'delete' => $id === ''
-                            ? ApiBridge::toolJson(['error' => 'id is required for delete action'])
+                            ? ApiBridge::toolError('id is required for delete action')
                             : self::delete($api, $id),
                         'test' => $id === ''
-                            ? ApiBridge::toolJson(['error' => 'id is required for test action'])
+                            ? ApiBridge::toolError('id is required for test action')
                             : ApiBridge::fromResponse($api->request('POST', '/webhooks/' . rawurlencode($id) . '/test')),
                         default => ApiBridge::toolError('Invalid action. Must be one of: create, update, delete, test'),
                     };

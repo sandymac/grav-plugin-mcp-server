@@ -39,10 +39,21 @@ class ApiBridge
         return array_intersect_key($args, array_flip($keys));
     }
 
-    /** Path-encode one argument, keeping '/' separators (page routes, config scopes). */
+    /**
+     * Path-encode one argument, keeping '/' separators (page routes, config scopes).
+     *
+     * A page `route` of "/" is the home page's public route, which list_pages
+     * reports, but the api resolves pages by their own route (raw_route, e.g.
+     * "/home"), so it maps to the configured home alias.
+     */
     public static function path(array $args, string $key = 'route'): string
     {
-        return str_replace('%2F', '/', rawurlencode(ltrim((string) ($args[$key] ?? ''), '/')));
+        $value = trim((string) ($args[$key] ?? ''), '/');
+        if ($value === '' && $key === 'route' && isset($args[$key]) && class_exists(Grav::class, false)) {
+            $value = trim((string) Grav::instance()['config']->get('system.home.alias', ''), '/');
+        }
+
+        return str_replace('%2F', '/', rawurlencode($value));
     }
 
     /** Installed api plugin version from its blueprint, null if the plugin is absent. */
