@@ -104,7 +104,7 @@ final class UsersTools
                         ), transform: self::withMetaMessage(...)),
                         'delete' => ApiBridge::fromResponse(
                             $api->request('DELETE', '/users/' . self::username($args)),
-                            successMessage: sprintf('User "%s" deleted.', $args['username'] ?? '')
+                            successMessage: sprintf('User "%s" deleted.', $args['username'])
                         ),
                         'cancel_email_change' => ApiBridge::fromResponse(
                             $api->request('DELETE', '/users/' . self::username($args) . '/email-change')
@@ -266,7 +266,7 @@ final class UsersTools
                         )),
                         'delete' => ApiBridge::fromResponse(
                             $api->request('DELETE', '/groups/' . $name),
-                            successMessage: sprintf('Group "%s" deleted.', $args['name'] ?? '')
+                            successMessage: sprintf('Group "%s" deleted.', $args['name'])
                         ),
                         default => ApiBridge::toolError('Invalid action. Must be one of: create, update, delete'),
                     };

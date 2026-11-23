@@ -271,7 +271,7 @@ final class PagesTools
                             'POST',
                             '/pages/' . ApiBridge::path($args) . '/copy',
                             [],
-                            ['route' => $args['destination_route'] ?? ''] + ApiBridge::pick($args, ['order'])
+                            ['route' => $args['destination_route']] + ApiBridge::pick($args, ['order'])
                         )),
                     default => ApiBridge::toolError('Invalid mode. Must be one of: move, copy'),
                 },

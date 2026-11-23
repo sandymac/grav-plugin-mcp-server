@@ -118,7 +118,7 @@ final class MultilingualTools
                                 '/pages/' . ApiBridge::path($args) . '/sync',
                                 [],
                                 // The MCP-facing names are 'source_language'/'language'; the endpoint reads 'source_lang'/'target_lang'.
-                                ['source_lang' => $args['source_language'] ?? '', 'target_lang' => $args['language'] ?? '']
+                                ['source_lang' => $args['source_language'], 'target_lang' => $args['language'] ?? '']
                             )),
                         default => ApiBridge::toolError('Invalid action: must be one of "create", "adopt", "sync".'),
                     };
