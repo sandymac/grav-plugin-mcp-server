@@ -341,6 +341,32 @@ check(($config['shadowed'][0]['path'] ?? null) === 'enabled', 'get_config keeps 
 $resent = json_decode($toolsByName['manage_users']['handler']($metaBridge, ['action' => 'resend_email_change', 'username' => 'u'])['content'][0]['text'], true);
 check(str_contains($resent['message'] ?? '', 'confirmation link'), 'manage_users resend_email_change keeps meta.message');
 
+// get_page exposes the same page record to clients using either MCP result field.
+$pageBridge = new class(null, null) extends \Grav\Plugin\McpServer\ApiBridge {
+    public bool $missing = false;
+
+    public function request(string $method, string $path, array $query = [], ?array $body = null, array $headers = [], array $files = []): array
+    {
+        return $this->missing
+            ? ['status' => 404, 'headers' => [], 'json' => ['detail' => 'Page not found']]
+            : ['status' => 200, 'headers' => ['etag' => '"page-1"'], 'json' => ['data' => [
+                'route' => '/a',
+                'title' => 'Article',
+                'content' => '# Article',
+            ]]];
+    }
+};
+$getPage = \Grav\Plugin\McpServer\Tools\PagesTools::tools()['get_page'];
+check($getPage['descriptor']['outputSchema']['type'] === 'object', 'get_page declares an object output schema');
+$pageResult = $getPage['handler']($pageBridge, ['route' => '/a']);
+$page = $pageResult['structuredContent'] ?? null;
+check($page instanceof \stdClass && $page->route === '/a' && $page->content === '# Article', 'get_page returns the structured page body');
+check($page->_etag === 'page-1', 'get_page retains the ETag');
+check(json_encode($page, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) === $pageResult['content'][0]['text'], 'get_page text matches its structured result');
+$pageBridge->missing = true;
+$missingPage = $getPage['handler']($pageBridge, ['route' => '/a']);
+check($missingPage['isError'] && !isset($missingPage['structuredContent']), 'get_page keeps its text error for a missing page');
+
 // A delete a plugin can undo answers 200 with {undo} instead of 204 (api 1.1.3);
 // delete_page keeps it beside its message, and a plain 204 still reads as before.
 $deleteBridge = new class(null, null) extends \Grav\Plugin\McpServer\ApiBridge {

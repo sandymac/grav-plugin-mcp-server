@@ -84,23 +84,46 @@ final class PagesTools
                         'required' => ['route'],
                         'additionalProperties' => false,
                     ],
+                    'outputSchema' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'route' => ['type' => 'string'],
+                            'title' => ['type' => 'string'],
+                            'content' => ['type' => 'string', 'description' => 'Page body as Markdown, or HTML when render is true'],
+                            '_etag' => ['type' => 'string'],
+                        ],
+                        'required' => ['route'],
+                        'additionalProperties' => true,
+                    ],
                     'annotations' => ['readOnlyHint' => true],
                 ],
-                'handler' => static fn(ApiBridge $api, array $args): array => ApiBridge::fromResponse(
-                    $api->request('GET', '/pages/' . ApiBridge::path($args), [
-                        // api 1.1.18+ router: the whole path is the page, so a page
-                        // named like a sub-resource (/blog/media, /ref/languages)
-                        // isn't routed to its parent's. Older api ignores it. Same
-                        // on update_page and delete_page.
-                        'resource' => 'page',
-                        'render' => $args['render'] ?? null,
-                        'children' => $args['children'] ?? null,
-                        'children_depth' => $args['children_depth'] ?? null,
-                        'lang' => $args['lang'] ?? null,
-                        'translations' => $args['translations'] ?? null,
-                    ]),
-                    true
-                ),
+                'handler' => static function (ApiBridge $api, array $args): array {
+                    $result = ApiBridge::fromResponse(
+                        $api->request('GET', '/pages/' . ApiBridge::path($args), [
+                            // api 1.1.18+ router: the whole path is the page, so a page
+                            // named like a sub-resource (/blog/media, /ref/languages)
+                            // isn't routed to its parent's. Older api ignores it. Same
+                            // on update_page and delete_page.
+                            'resource' => 'page',
+                            'render' => $args['render'] ?? null,
+                            'children' => $args['children'] ?? null,
+                            'children_depth' => $args['children_depth'] ?? null,
+                            'lang' => $args['lang'] ?? null,
+                            'translations' => $args['translations'] ?? null,
+                        ]),
+                        true
+                    );
+                    if ($result['isError']) {
+                        return $result;
+                    }
+
+                    $page = json_decode($result['content'][0]['text']);
+                    if ($page instanceof \stdClass && is_string($page->route ?? null)) {
+                        $result['structuredContent'] = $page;
+                    }
+
+                    return $result;
+                },
             ],
 
             'get_page_neighbors' => [
